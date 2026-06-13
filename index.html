@@ -270,7 +270,7 @@
   }
 
   /* Leaflet overrides */
-  .leaflet-container { background: #0a0a0a; }
+  .leaflet-container { background: #e8e4dc; }
   .leaflet-control-attribution { display: none; }
   .leaflet-bar a {
     background: var(--surface) !important;
@@ -993,9 +993,10 @@
     zoomControl: true,
   });
 
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_matter/{z}/{x}/{y}{r}.png', {
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
     attribution: '©OpenStreetMap ©CARTO',
     maxZoom: 19,
+    subdomains: ['a','b','c','d'],
   }).addTo(map);
 
   // Draw feature group
