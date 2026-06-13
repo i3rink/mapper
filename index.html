@@ -1176,11 +1176,13 @@
     });
   }
 
-  // ── PAINT ERASER (canvas overlay) ──────────────────────────
+  // ── PAINT ERASER (geo-anchored) ────────────────────────────
+  // Strokes stored as geographic data, canvas redrawn on every map move
   let isPainting = false;
-  let lastPaintPoint = null;
   let eraseCanvas = null;
   let eraseCtx = null;
+  // Each stroke: { lat, lng, radiusMetres }
+  const eraseStrokes = [];
 
   function getOrCreateCanvas() {
     if (eraseCanvas) return eraseCanvas;
@@ -1198,43 +1200,63 @@
     return parseInt(document.getElementById('brushSize').value);
   }
 
-  function getBrushPx() {
+  // Convert metres to canvas pixels at current zoom
+  function metresToPx(metres) {
     const centre = map.getCenter();
     const p1 = map.latLngToContainerPoint(centre);
-    const p2 = map.latLngToContainerPoint(L.latLng(centre.lat, centre.lng + 0.01));
-    const pxPer01Deg = Math.abs(p2.x - p1.x) || 1;
-    const metresPer01Deg = 0.01 * Math.cos(centre.lat * Math.PI / 180) * 111320;
-    return getBrushRadius() * (pxPer01Deg / metresPer01Deg);
+    const p2 = map.latLngToContainerPoint(L.latLng(centre.lat, centre.lng + 0.001));
+    const pxPer001Deg = Math.abs(p2.x - p1.x) || 1;
+    const metresPer001Deg = 0.001 * Math.cos(centre.lat * Math.PI / 180) * 111320;
+    return metres * (pxPer001Deg / metresPer001Deg);
   }
 
-  function paintAt(x, y) {
-    if (!eraseCtx) return;
-    eraseCtx.fillStyle = 'rgba(224,92,92,0.6)';
-    if (lastPaintPoint) {
-      const dx = x - lastPaintPoint.x, dy = y - lastPaintPoint.y;
-      const dist = Math.sqrt(dx*dx + dy*dy);
-      const r = getBrushPx();
-      const steps = Math.max(1, Math.ceil(dist / Math.max(1, r * 0.25)));
-      for (let i = 0; i <= steps; i++) {
-        eraseCtx.beginPath();
-        eraseCtx.arc(lastPaintPoint.x + dx*i/steps, lastPaintPoint.y + dy*i/steps, r, 0, Math.PI*2);
-        eraseCtx.fill();
-      }
-    } else {
+  // Redraw entire canvas from stored geo strokes
+  function redrawEraseCanvas() {
+    if (!eraseCtx || !eraseCanvas) return;
+    const mapEl = document.getElementById('map');
+    eraseCanvas.width  = mapEl.offsetWidth  || 800;
+    eraseCanvas.height = mapEl.offsetHeight || 600;
+    eraseCtx.clearRect(0, 0, eraseCanvas.width, eraseCanvas.height);
+    if (!eraseStrokes.length) return;
+    eraseCtx.fillStyle = 'rgba(224,92,92,0.55)';
+    for (const s of eraseStrokes) {
+      const pt = map.latLngToContainerPoint(L.latLng(s.lat, s.lng));
+      const r  = metresToPx(s.radiusMetres);
       eraseCtx.beginPath();
-      eraseCtx.arc(x, y, getBrushPx(), 0, Math.PI*2);
+      eraseCtx.arc(pt.x, pt.y, r, 0, Math.PI * 2);
       eraseCtx.fill();
     }
-    lastPaintPoint = { x, y };
   }
 
-  function isExcludedByCanvas(latlng) {
-    if (!eraseCanvas || !eraseCtx) return false;
-    const pt = map.latLngToContainerPoint(latlng);
-    const x = Math.round(pt.x), y = Math.round(pt.y);
-    if (x < 0 || y < 0 || x >= eraseCanvas.width || y >= eraseCanvas.height) return false;
-    return eraseCtx.getImageData(x, y, 1, 1).data[3] > 30;
+  // Record a geo stroke and redraw
+  function addStroke(latlng) {
+    const radiusMetres = getBrushRadius();
+    // Throttle: skip if too close to last stroke (< 20% of brush radius)
+    if (eraseStrokes.length) {
+      const prev = eraseStrokes[eraseStrokes.length - 1];
+      const dist = map.distance(latlng, L.latLng(prev.lat, prev.lng));
+      if (dist < radiusMetres * 0.2) return;
+    }
+    eraseStrokes.push({ lat: latlng.lat, lng: latlng.lng, radiusMetres });
+    redrawEraseCanvas();
   }
+
+  // Check if a latlng is covered by any stored stroke
+  function isExcludedByCanvas(latlng) {
+    for (const s of eraseStrokes) {
+      const dist = map.distance(latlng, L.latLng(s.lat, s.lng));
+      if (dist <= s.radiusMetres) return true;
+    }
+    return false;
+  }
+
+  function clearEraseCanvas() {
+    eraseStrokes.length = 0;
+    if (eraseCtx) eraseCtx.clearRect(0, 0, eraseCanvas.width, eraseCanvas.height);
+  }
+
+  // Redraw whenever map moves or zooms
+  map.on('move zoom moveend zoomend', redrawEraseCanvas);
 
   function startPaintMode() {
     getOrCreateCanvas();
@@ -1251,16 +1273,16 @@
 
     function moveCursor(clientX, clientY) {
       const rect = mapEl.getBoundingClientRect();
-      const px = getBrushPx() * 2;
-      brushCursor.style.width  = px + 'px';
-      brushCursor.style.height = px + 'px';
-      brushCursor.style.left   = (clientX - rect.left)  + 'px';
-      brushCursor.style.top    = (clientY - rect.top) + 'px';
+      const px = metresToPx(getBrushRadius()) * 2;
+      brushCursor.style.width   = px + 'px';
+      brushCursor.style.height  = px + 'px';
+      brushCursor.style.left    = (clientX - rect.left) + 'px';
+      brushCursor.style.top     = (clientY - rect.top)  + 'px';
       brushCursor.style.display = 'block';
     }
 
     mapEl._brushMove  = e => moveCursor(e.clientX, e.clientY);
-    mapEl._brushLeave = () => { brushCursor.style.display = 'none'; };
+    mapEl._brushLeave = () => { document.getElementById('brushCursor').style.display = 'none'; };
     mapEl.addEventListener('mousemove',  mapEl._brushMove);
     mapEl.addEventListener('mouseleave', mapEl._brushLeave);
 
@@ -1276,7 +1298,6 @@
     const mapEl = document.getElementById('map');
     mapEl.style.cursor = '';
     isPainting = false;
-    lastPaintPoint = null;
     map.dragging.enable();
     const bc = document.getElementById('brushCursor');
     if (bc) bc.style.display = 'none';
@@ -1290,43 +1311,38 @@
     mapEl.removeEventListener('touchend',   onTouchEnd);
   }
 
-  function evtPoint(e) {
-    const rect = map.getContainer().getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-  }
-
   function onMapMouseDown(e) {
-    isPainting = true; lastPaintPoint = null;
+    isPainting = true;
     map.dragging.disable();
-    const pt = evtPoint(e.originalEvent);
-    paintAt(pt.x, pt.y);
+    addStroke(e.latlng);
   }
   function onMapMouseMove(e) {
     if (!isPainting) return;
-    const pt = evtPoint(e.originalEvent);
-    paintAt(pt.x, pt.y);
+    addStroke(e.latlng);
   }
   function onMapMouseUp() {
-    isPainting = false; lastPaintPoint = null;
+    isPainting = false;
     map.dragging.enable();
   }
   function onTouchStart(e) {
     e.preventDefault();
-    isPainting = true; lastPaintPoint = null;
+    isPainting = true;
     map.dragging.disable();
-    const rect = map.getContainer().getBoundingClientRect();
-    const t = e.touches[0];
-    paintAt(t.clientX - rect.left, t.clientY - rect.top);
+    addStroke(map.containerPointToLatLng(
+      L.point(e.touches[0].clientX - map.getContainer().getBoundingClientRect().left,
+              e.touches[0].clientY - map.getContainer().getBoundingClientRect().top)
+    ));
   }
   function onTouchMove(e) {
     if (!isPainting) return;
     e.preventDefault();
     const rect = map.getContainer().getBoundingClientRect();
-    const t = e.touches[0];
-    paintAt(t.clientX - rect.left, t.clientY - rect.top);
+    addStroke(map.containerPointToLatLng(
+      L.point(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top)
+    ));
   }
   function onTouchEnd() {
-    isPainting = false; lastPaintPoint = null;
+    isPainting = false;
     map.dragging.enable();
   }
 
@@ -1335,8 +1351,8 @@
     document.getElementById('brushSizeLabel').textContent = km + ' km';
     const bc = document.getElementById('brushCursor');
     if (bc && bc.style.display !== 'none') {
-      const px = getBrushPx() * 2;
-      bc.style.width = px + 'px';
+      const px = metresToPx(getBrushRadius()) * 2;
+      bc.style.width  = px + 'px';
       bc.style.height = px + 'px';
     }
   });
