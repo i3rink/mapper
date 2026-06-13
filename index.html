@@ -270,7 +270,7 @@
   }
 
   /* Leaflet overrides */
-  .leaflet-container { background: #111; }
+  .leaflet-container { background: #0a0a0a; }
   .leaflet-control-attribution { display: none; }
   .leaflet-bar a {
     background: var(--surface) !important;
@@ -993,8 +993,8 @@
     zoomControl: true,
   });
 
-  L.tileLayer('https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}{r}.png', {
-    attribution: '©OpenStreetMap ©Stadia Maps',
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_matter/{z}/{x}/{y}{r}.png', {
+    attribution: '©OpenStreetMap ©CARTO',
     maxZoom: 19,
   }).addTo(map);
 
