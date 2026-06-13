@@ -10,24 +10,23 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
 <style>
   :root {
-    --bg: #0f1117;
-    --surface: #1a1d27;
-    --surface2: #22263a;
-    --border: #2e3350;
-    --accent: #3b82f6;
-    --accent-hover: #2563eb;
-    --accent-glow: rgba(59,130,246,0.15);
-    --danger: #ef4444;
-    --danger-glow: rgba(239,68,68,0.15);
-    --success: #22c55e;
-    --text: #e8eaf0;
-    --text-muted: #7880a0;
-    --text-dim: #4a5080;
+    --bg: #1e1a17;
+    --surface: #2a2420;
+    --surface2: #332e29;
+    --border: #4a4238;
+    --accent: #d4622a;
+    --accent-hover: #b8511f;
+    --accent-glow: rgba(212,98,42,0.15);
+    --danger: #e05c5c;
+    --danger-glow: rgba(224,92,92,0.12);
+    --success: #7ab87a;
+    --text: #f0ebe4;
+    --text-muted: #9e9188;
+    --text-dim: #5e554e;
     --radius: 10px;
     --radius-sm: 6px;
     --font-display: 'Bricolage Grotesque', sans-serif;
     --font-body: 'Hanken Grotesk', sans-serif;
-    --dot-color: rgba(59,130,246,0.07);
   }
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -35,8 +34,6 @@
   body {
     font-family: var(--font-body);
     background: var(--bg);
-    background-image: radial-gradient(var(--dot-color) 1px, transparent 1px);
-    background-size: 24px 24px;
     color: var(--text);
     height: 100dvh;
     display: flex;
@@ -67,7 +64,7 @@
     width: 28px;
     height: 28px;
     border-radius: 7px;
-    background: linear-gradient(135deg, var(--accent), #6366f1);
+    background: linear-gradient(135deg, var(--accent), #8b3a1a);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -150,7 +147,7 @@
   .btn-ghost:hover { color: var(--text); border-color: var(--accent); }
   .btn-danger { background: var(--danger-glow); color: var(--danger); border: 1px solid rgba(239,68,68,0.25); }
   .btn-danger:hover { background: rgba(239,68,68,0.25); }
-  .btn-success { background: var(--success); color: #0f1117; }
+  .btn-success { background: var(--accent); color: #fff; }
   .btn-success:hover { opacity: 0.9; }
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
@@ -273,7 +270,7 @@
   }
 
   /* Leaflet overrides */
-  .leaflet-container { background: #0f1117; }
+  .leaflet-container { background: #111; }
   .leaflet-control-attribution { display: none; }
   .leaflet-bar a {
     background: var(--surface) !important;
@@ -403,7 +400,7 @@
     font-weight: 500;
     color: var(--text);
   }
-  .tag.postcode { color: var(--accent); border-color: rgba(59,130,246,0.3); background: var(--accent-glow); }
+  .tag.postcode { color: var(--accent); border-color: rgba(212,98,42,0.3); background: var(--accent-glow); }
 
   .results-footer {
     padding: 14px 20px;
@@ -447,8 +444,82 @@
   }
   .map-hint.visible { display: block; }
 
-  /* leaflet draw overrides for dark theme */
   .leaflet-draw-guide-dash { background: var(--accent) !important; }
+
+  /* ── ONBOARDING PANEL ── */
+  .onboard {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 260px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    z-index: 800;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  .onboard-title {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .onboard-dismiss {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+  }
+  .onboard-dismiss:hover { color: var(--text-muted); }
+  .onboard-step {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin-bottom: 10px;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.45;
+  }
+  .onboard-step:last-child { margin-bottom: 0; }
+  .onboard-num {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--accent-glow);
+    border: 1px solid rgba(212,98,42,0.4);
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .onboard-step strong { color: var(--text); }
+
+  /* ── RADIUS EDIT IN SIDEBAR ── */
+  .point-item { flex-wrap: wrap; gap: 6px; }
+  .point-radius-edit {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 11px;
+    padding: 2px 5px;
+    cursor: pointer;
+    outline: none;
+  }
+  .point-radius-edit:focus { border-color: var(--accent); }
 
   @media (max-width: 700px) {
     .sidebar { width: 100%; max-height: 200px; }
@@ -521,6 +592,34 @@
   <div style="position:relative; flex:1; display:flex; flex-direction:column;">
     <div id="map"></div>
     <div class="map-hint" id="mapHint">Click points on the map to draw</div>
+
+    <!-- ONBOARDING -->
+    <div class="onboard" id="onboard">
+      <div class="onboard-title">
+        How to build your target area
+        <button class="onboard-dismiss" id="onboardDismiss" title="Dismiss">✕</button>
+      </div>
+      <div class="onboard-step">
+        <div class="onboard-num">1</div>
+        <div><strong>Search a place</strong> in the header — e.g. Irvine. Pick a radius and hit <em>Add point</em>. You can add multiple centres.</div>
+      </div>
+      <div class="onboard-step">
+        <div class="onboard-num">2</div>
+        <div><strong>Adjust the radius</strong> for any point using the dropdown in the sidebar list below the tools.</div>
+      </div>
+      <div class="onboard-step">
+        <div class="onboard-num">3</div>
+        <div><strong>Refine the shape</strong> — use Draw area or Bounding box to add extra coverage beyond the circles.</div>
+      </div>
+      <div class="onboard-step">
+        <div class="onboard-num">4</div>
+        <div><strong>Cut out areas</strong> you don't want — draw an Exclude zone over e.g. central Glasgow.</div>
+      </div>
+      <div class="onboard-step">
+        <div class="onboard-num">5</div>
+        <div><strong>Generate targets</strong> — downloads an XLSX and map image ready for Google Ads.</div>
+      </div>
+    </div>
   </div>
 
 </div>
@@ -885,7 +984,7 @@
   };
 
   // Colours for radius points
-  const COLOURS = ['#3b82f6','#22c55e','#f59e0b','#a855f7','#ec4899','#14b8a6'];
+  const COLOURS = ['#d4622a','#4da6e8','#e8b84b','#9b59d4','#5abf7a','#e05c5c'];
 
   // ── MAP INIT ───────────────────────────────────────────────
   const map = L.map('map', {
@@ -894,23 +993,13 @@
     zoomControl: true,
   });
 
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution: '©OpenStreetMap ©CARTO',
+  L.tileLayer('https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}{r}.png', {
+    attribution: '©OpenStreetMap ©Stadia Maps',
     maxZoom: 19,
   }).addTo(map);
 
   // Draw feature group
   const drawnItems = new L.FeatureGroup().addTo(map);
-
-  // Draw control (hidden — we trigger programmatically)
-  const drawControl = new L.Control.Draw({
-    draw: {
-      polygon: { shapeOptions: { color: '#3b82f6', fillOpacity: 0.15, weight: 2 } },
-      rectangle: { shapeOptions: { color: '#3b82f6', fillOpacity: 0.15, weight: 2 } },
-      circle: false, circlemarker: false, polyline: false, marker: false,
-    },
-    edit: { featureGroup: drawnItems, edit: false, remove: false },
-  });
 
   let activeDrawHandler = null;
 
@@ -919,17 +1008,31 @@
     const isExclude = state.mode === 'exclude';
 
     if (isExclude) {
-      layer.setStyle({ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.2, weight: 2, dashArray: '6,4' });
+      layer.setStyle({ color: '#e05c5c', fillColor: '#e05c5c', fillOpacity: 0.18, weight: 2, dashArray: '6,4' });
       state.excludeLayers.push(layer);
     } else {
-      layer.setStyle({ color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.15, weight: 2 });
+      layer.setStyle({ color: '#d4622a', fillColor: '#d4622a', fillOpacity: 0.15, weight: 2 });
       state.drawnLayers.push(layer);
     }
     drawnItems.addLayer(layer);
     activeDrawHandler = null;
     state.mode = null;
+    thawMapLayers();
+    document.getElementById('mapHint').classList.remove('visible');
     updateToolButtons();
     updateStatus();
+  });
+
+  // Escape cancels active draw
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && activeDrawHandler) {
+      activeDrawHandler.disable();
+      activeDrawHandler = null;
+      state.mode = null;
+      thawMapLayers();
+      updateToolButtons();
+      document.getElementById('mapHint').classList.remove('visible');
+    }
   });
 
   // ── SEARCH ─────────────────────────────────────────────────
@@ -1009,7 +1112,11 @@
       <div class="point-item">
         <div class="point-color" style="background:${p.colour}"></div>
         <div class="point-name">${p.name}</div>
-        <div class="point-meta">${p.miles} mi</div>
+        <select class="point-radius-edit" data-action="resize" data-id="${p.id}">
+          ${[1,2,5,10,20,30,40,50].map(m =>
+            `<option value="${m}"${m === p.miles ? ' selected' : ''}>${m} mi</option>`
+          ).join('')}
+        </select>
         <button class="point-remove" data-action="remove" data-id="${p.id}" title="Remove">✕</button>
       </div>
     `).join('');
@@ -1020,32 +1127,95 @@
     if (btn) removePoint(parseInt(btn.dataset.id));
   });
 
-  // ── TOOLS ──────────────────────────────────────────────────
-  function startDraw(mode) {
-    if (activeDrawHandler) { activeDrawHandler.disable(); activeDrawHandler = null; }
+  document.getElementById('pointsList').addEventListener('change', e => {
+    const sel = e.target.closest('[data-action="resize"]');
+    if (!sel) return;
+    const id = parseInt(sel.dataset.id);
+    const miles = parseInt(sel.value);
+    const p = state.radiusPoints.find(pt => pt.id === id);
+    if (!p) return;
+    p.miles = miles;
+    p.circle.setRadius(miles * MILES_TO_METRES);
+    p.marker.setTooltipContent(`<strong>${p.name}</strong><br>${miles} mi radius`);
+    fitMap();
+    setStatus('ready', `${p.name} updated to ${miles} mi radius`);
+  });
 
+  // ── TOOLS ──────────────────────────────────────────────────
+
+  // Freeze all existing map layers so draw clicks aren't intercepted by circles/markers
+  function freezeMapLayers() {
+    map.eachLayer(layer => {
+      if (layer._path) layer._path.style.pointerEvents = 'none';
+      if (layer._icon) layer._icon.style.pointerEvents = 'none';
+    });
+    // Also freeze drawn items
+    drawnItems.eachLayer(layer => {
+      if (layer._path) layer._path.style.pointerEvents = 'none';
+    });
+  }
+
+  function thawMapLayers() {
+    map.eachLayer(layer => {
+      if (layer._path) layer._path.style.pointerEvents = '';
+      if (layer._icon) layer._icon.style.pointerEvents = '';
+    });
+    drawnItems.eachLayer(layer => {
+      if (layer._path) layer._path.style.pointerEvents = '';
+    });
+  }
+
+  function startDraw(mode) {
+    // Cancel any active draw first
+    if (activeDrawHandler) {
+      activeDrawHandler.disable();
+      activeDrawHandler = null;
+      thawMapLayers();
+    }
+
+    // Toggle off if clicking the same tool again
     if (state.mode === mode) {
       state.mode = null;
       updateToolButtons();
+      document.getElementById('mapHint').classList.remove('visible');
       return;
     }
 
     state.mode = mode;
     updateToolButtons();
 
-    const opts = mode === 'rect'
-      ? new L.Draw.Rectangle(map, { shapeOptions: { color: '#3b82f6', fillOpacity: 0.15 } })
-      : mode === 'exclude'
-        ? new L.Draw.Polygon(map, { shapeOptions: { color: '#ef4444', fillOpacity: 0.15 } })
-        : new L.Draw.Polygon(map, { shapeOptions: { color: '#3b82f6', fillOpacity: 0.15 } });
+    // Disable pointer events on all existing layers so draw clicks land on the map
+    freezeMapLayers();
 
-    opts.enable();
-    activeDrawHandler = opts;
+    let handler;
+    if (mode === 'rect') {
+      handler = new L.Draw.Rectangle(map, {
+        shapeOptions: { color: '#d4622a', fillColor: '#d4622a', fillOpacity: 0.15, weight: 2 }
+      });
+    } else if (mode === 'exclude') {
+      handler = new L.Draw.Polygon(map, {
+        shapeOptions: { color: '#e05c5c', fillColor: '#e05c5c', fillOpacity: 0.15, weight: 2, dashArray: '6,4' },
+        allowIntersection: false,
+        showArea: false,
+      });
+    } else {
+      handler = new L.Draw.Polygon(map, {
+        shapeOptions: { color: '#d4622a', fillColor: '#d4622a', fillOpacity: 0.15, weight: 2 },
+        allowIntersection: false,
+        showArea: false,
+      });
+    }
+
+    handler.enable();
+    activeDrawHandler = handler;
 
     const hint = document.getElementById('mapHint');
-    hint.textContent = mode === 'exclude' ? 'Click to draw exclusion zone · double-click to finish' : 'Click to draw area · double-click to finish';
+    hint.textContent = mode === 'exclude'
+      ? '🚫 Click to place exclusion points · double-click to finish · Esc to cancel'
+      : mode === 'rect'
+        ? '⬜ Click and drag to draw bounding box · Esc to cancel'
+        : '✏️ Click to place points · double-click to finish · Esc to cancel';
     hint.classList.add('visible');
-    setTimeout(() => hint.classList.remove('visible'), 5000);
   }
 
   function undoLastShape() {
@@ -1338,16 +1508,16 @@
       useCORS: true,
       allowTaint: true,
       scale: 2,
-      backgroundColor: '#0f1117',
+      backgroundColor: '#1e1a17',
     }).then(canvas => {
       // Add title overlay
       const ctx = canvas.getContext('2d');
-      ctx.fillStyle = 'rgba(15,17,23,0.75)';
+      ctx.fillStyle = 'rgba(30,26,23,0.82)';
       ctx.fillRect(0, 0, 320, 56);
-      ctx.fillStyle = '#e8eaf0';
+      ctx.fillStyle = '#f0ebe4';
       ctx.font = 'bold 16px sans-serif';
       ctx.fillText('Annick Group · Geo Targets', 16, 24);
-      ctx.fillStyle = '#7880a0';
+      ctx.fillStyle = '#9e9188';
       ctx.font = '12px sans-serif';
       const d = state.generatedData;
       ctx.fillText(d ? `${d.postcodes.length} districts · ${d.places.length} places` : 'Selected area', 16, 44);
@@ -1424,6 +1594,10 @@
 
   // ── INIT ───────────────────────────────────────────────────
   setStatus('', 'Ready — add a place to start');
+
+  document.getElementById('onboardDismiss').addEventListener('click', () => {
+    document.getElementById('onboard').style.display = 'none';
+  });
 
 })();
 </script>
