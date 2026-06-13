@@ -1176,84 +1176,93 @@
     });
   }
 
-  // ── PAINT ERASER ───────────────────────────────────────────
+  // ── PAINT ERASER (canvas overlay) ──────────────────────────
   let isPainting = false;
-  let lastPaintLatLng = null;
-  const MIN_PAINT_DIST = 200; // metres between paint drops to avoid excess circles
+  let lastPaintPoint = null;
+  let eraseCanvas = null;
+  let eraseCtx = null;
+
+  function getOrCreateCanvas() {
+    if (eraseCanvas) return eraseCanvas;
+    const mapEl = document.getElementById('map');
+    eraseCanvas = document.createElement('canvas');
+    eraseCanvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:450;';
+    eraseCanvas.width  = mapEl.offsetWidth  || 800;
+    eraseCanvas.height = mapEl.offsetHeight || 600;
+    mapEl.appendChild(eraseCanvas);
+    eraseCtx = eraseCanvas.getContext('2d');
+    return eraseCanvas;
+  }
 
   function getBrushRadius() {
     return parseInt(document.getElementById('brushSize').value);
   }
 
-  function paintExcludeAt(latlng) {
-    // Skip if too close to last paint drop (performance)
-    if (lastPaintLatLng) {
-      const d = map.distance(latlng, lastPaintLatLng);
-      if (d < MIN_PAINT_DIST) return;
-    }
-    lastPaintLatLng = latlng;
+  function getBrushPx() {
+    const centre = map.getCenter();
+    const p1 = map.latLngToContainerPoint(centre);
+    const p2 = map.latLngToContainerPoint(L.latLng(centre.lat, centre.lng + 0.01));
+    const pxPer01Deg = Math.abs(p2.x - p1.x) || 1;
+    const metresPer01Deg = 0.01 * Math.cos(centre.lat * Math.PI / 180) * 111320;
+    return getBrushRadius() * (pxPer01Deg / metresPer01Deg);
+  }
 
-    const radius = getBrushRadius();
-    const circle = L.circle(latlng, {
-      radius,
-      color: '#e05c5c',
-      fillColor: '#e05c5c',
-      fillOpacity: 0.35,
-      weight: 1.5,
-      dashArray: null,
-      interactive: false,
-    });
-    drawnItems.addLayer(circle);
-    state.excludeLayers.push(circle);
+  function paintAt(x, y) {
+    if (!eraseCtx) return;
+    eraseCtx.fillStyle = 'rgba(224,92,92,0.6)';
+    if (lastPaintPoint) {
+      const dx = x - lastPaintPoint.x, dy = y - lastPaintPoint.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const r = getBrushPx();
+      const steps = Math.max(1, Math.ceil(dist / Math.max(1, r * 0.25)));
+      for (let i = 0; i <= steps; i++) {
+        eraseCtx.beginPath();
+        eraseCtx.arc(lastPaintPoint.x + dx*i/steps, lastPaintPoint.y + dy*i/steps, r, 0, Math.PI*2);
+        eraseCtx.fill();
+      }
+    } else {
+      eraseCtx.beginPath();
+      eraseCtx.arc(x, y, getBrushPx(), 0, Math.PI*2);
+      eraseCtx.fill();
+    }
+    lastPaintPoint = { x, y };
+  }
+
+  function isExcludedByCanvas(latlng) {
+    if (!eraseCanvas || !eraseCtx) return false;
+    const pt = map.latLngToContainerPoint(latlng);
+    const x = Math.round(pt.x), y = Math.round(pt.y);
+    if (x < 0 || y < 0 || x >= eraseCanvas.width || y >= eraseCanvas.height) return false;
+    return eraseCtx.getImageData(x, y, 1, 1).data[3] > 30;
   }
 
   function startPaintMode() {
+    getOrCreateCanvas();
     const mapEl = document.getElementById('map');
-    mapEl.style.cursor = 'none'; // hide default, we'll show brush cursor
+    mapEl.style.cursor = 'none';
 
-    // Create brush cursor element
     let brushCursor = document.getElementById('brushCursor');
     if (!brushCursor) {
       brushCursor = document.createElement('div');
       brushCursor.id = 'brushCursor';
-      brushCursor.style.cssText = `
-        position:absolute; pointer-events:none; border-radius:50%;
-        border:2px solid #e05c5c; background:rgba(224,92,92,0.15);
-        transform:translate(-50%,-50%); display:none; z-index:900;
-        transition: width 0.1s, height 0.1s;
-      `;
+      brushCursor.style.cssText = 'position:absolute;pointer-events:none;border-radius:50%;border:2.5px solid #e05c5c;background:rgba(224,92,92,0.12);transform:translate(-50%,-50%);display:none;z-index:900;';
       mapEl.parentElement.appendChild(brushCursor);
     }
 
-    function updateBrushCursor(x, y) {
-      const brushMetres = getBrushRadius();
-      // Approximate pixel size: get map scale at current centre
-      const centre = map.getCenter();
-      const p1 = map.latLngToContainerPoint(centre);
-      const p2 = map.latLngToContainerPoint(L.latLng(centre.lat, centre.lng + 0.1));
-      const metresPerPx = (0.1 * Math.cos(centre.lat * Math.PI / 180) * 111320) / Math.abs(p2.x - p1.x);
-      const px = (brushMetres / metresPerPx) * 2;
+    function moveCursor(clientX, clientY) {
+      const rect = mapEl.getBoundingClientRect();
+      const px = getBrushPx() * 2;
       brushCursor.style.width  = px + 'px';
       brushCursor.style.height = px + 'px';
-      brushCursor.style.left   = x + 'px';
-      brushCursor.style.top    = y + 'px';
+      brushCursor.style.left   = (clientX - rect.left)  + 'px';
+      brushCursor.style.top    = (clientY - rect.top) + 'px';
       brushCursor.style.display = 'block';
     }
 
-    mapEl._brushMove = function(e) {
-      const rect = mapEl.getBoundingClientRect();
-      updateBrushCursor(e.clientX - rect.left, e.clientY - rect.top);
-    };
-    mapEl._brushLeave = function() {
-      brushCursor.style.display = 'none';
-    };
-    mapEl.addEventListener('mousemove', mapEl._brushMove);
+    mapEl._brushMove  = e => moveCursor(e.clientX, e.clientY);
+    mapEl._brushLeave = () => { brushCursor.style.display = 'none'; };
+    mapEl.addEventListener('mousemove',  mapEl._brushMove);
     mapEl.addEventListener('mouseleave', mapEl._brushLeave);
-
-    // Also update cursor when brush size changes
-    document.getElementById('brushSize')._cursorUpdate = function() {
-      // cursor size will update on next mousemove
-    };
 
     map.on('mousedown', onMapMouseDown);
     map.on('mousemove', onMapMouseMove);
@@ -1267,14 +1276,12 @@
     const mapEl = document.getElementById('map');
     mapEl.style.cursor = '';
     isPainting = false;
-    lastPaintLatLng = null;
+    lastPaintPoint = null;
     map.dragging.enable();
-
-    const brushCursor = document.getElementById('brushCursor');
-    if (brushCursor) brushCursor.style.display = 'none';
-    if (mapEl._brushMove)  mapEl.removeEventListener('mousemove', mapEl._brushMove);
+    const bc = document.getElementById('brushCursor');
+    if (bc) bc.style.display = 'none';
+    if (mapEl._brushMove)  mapEl.removeEventListener('mousemove',  mapEl._brushMove);
     if (mapEl._brushLeave) mapEl.removeEventListener('mouseleave', mapEl._brushLeave);
-
     map.off('mousedown', onMapMouseDown);
     map.off('mousemove', onMapMouseMove);
     map.off('mouseup',   onMapMouseUp);
@@ -1283,53 +1290,55 @@
     mapEl.removeEventListener('touchend',   onTouchEnd);
   }
 
-  function onMapMouseDown(e) {
-    isPainting = true;
-    lastPaintLatLng = null;
-    map.dragging.disable();
-    paintExcludeAt(e.latlng);
+  function evtPoint(e) {
+    const rect = map.getContainer().getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   }
 
+  function onMapMouseDown(e) {
+    isPainting = true; lastPaintPoint = null;
+    map.dragging.disable();
+    const pt = evtPoint(e.originalEvent);
+    paintAt(pt.x, pt.y);
+  }
   function onMapMouseMove(e) {
     if (!isPainting) return;
-    paintExcludeAt(e.latlng);
+    const pt = evtPoint(e.originalEvent);
+    paintAt(pt.x, pt.y);
   }
-
   function onMapMouseUp() {
-    isPainting = false;
-    lastPaintLatLng = null;
+    isPainting = false; lastPaintPoint = null;
     map.dragging.enable();
   }
-
   function onTouchStart(e) {
     e.preventDefault();
-    isPainting = true;
-    lastPaintLatLng = null;
+    isPainting = true; lastPaintPoint = null;
     map.dragging.disable();
+    const rect = map.getContainer().getBoundingClientRect();
     const t = e.touches[0];
-    const latlng = map.containerPointToLatLng([t.clientX - map.getContainer().getBoundingClientRect().left, t.clientY - map.getContainer().getBoundingClientRect().top]);
-    paintExcludeAt(latlng);
+    paintAt(t.clientX - rect.left, t.clientY - rect.top);
   }
-
   function onTouchMove(e) {
     if (!isPainting) return;
     e.preventDefault();
-    const t = e.touches[0];
     const rect = map.getContainer().getBoundingClientRect();
-    const latlng = map.containerPointToLatLng([t.clientX - rect.left, t.clientY - rect.top]);
-    paintExcludeAt(latlng);
+    const t = e.touches[0];
+    paintAt(t.clientX - rect.left, t.clientY - rect.top);
   }
-
   function onTouchEnd() {
-    isPainting = false;
-    lastPaintLatLng = null;
+    isPainting = false; lastPaintPoint = null;
     map.dragging.enable();
   }
 
-  // Update brush label when slider moves
   document.getElementById('brushSize').addEventListener('input', function() {
-    const km = (parseInt(this.value) / 1000).toFixed(1).replace('.0','');
+    const km = (parseInt(this.value) / 1000).toFixed(1).replace(/\.0$/, '');
     document.getElementById('brushSizeLabel').textContent = km + ' km';
+    const bc = document.getElementById('brushCursor');
+    if (bc && bc.style.display !== 'none') {
+      const px = getBrushPx() * 2;
+      bc.style.width = px + 'px';
+      bc.style.height = px + 'px';
+    }
   });
 
   function startDraw(mode) {
@@ -1409,36 +1418,20 @@
     }
   });
 
-  // Track paint session batches for undo (each drag = one undoable batch)
-  let paintSessionStart = 0; // index into excludeLayers when drag began
-
-  map.on('mousedown', () => {
-    if (state.mode === 'exclude') paintSessionStart = state.excludeLayers.length;
-  });
-  map.on('mouseup', () => {
-    // seal the batch — next drag will start a new one
-  });
-
   function undoLastShape() {
-    if (state.mode === 'exclude' && state.excludeLayers.length > paintSessionStart) {
-      // Remove everything painted in the current drag session
-      while (state.excludeLayers.length > paintSessionStart) {
-        const c = state.excludeLayers.pop();
-        drawnItems.removeLayer(c);
-      }
-    } else if (state.excludeLayers.length) {
-      // Remove last full paint batch by finding the previous group boundary
-      // Simple approach: remove last 20 or until empty
-      const removeCount = Math.min(20, state.excludeLayers.length);
-      for (let i = 0; i < removeCount; i++) {
-        const c = state.excludeLayers.pop();
-        drawnItems.removeLayer(c);
-      }
+    if (eraseCanvas && eraseCtx) {
+      // Undo erases the entire painted canvas — simplest and most predictable
+      clearEraseCanvas();
+      setStatus('ready', 'Erased area cleared');
     } else if (state.drawnLayers.length) {
       const last = state.drawnLayers.pop();
       drawnItems.removeLayer(last);
     }
     updateStatus();
+  }
+
+  function clearEraseCanvas() {
+    if (eraseCtx) eraseCtx.clearRect(0, 0, eraseCanvas.width, eraseCanvas.height);
   }
 
   function updateToolButtons() {
@@ -1463,6 +1456,7 @@
     drawnItems.clearLayers();
     state.drawnLayers = [];
     state.excludeLayers = [];
+    clearEraseCanvas();
     renderPointsList();
     updateStatus();
     updateGenerateBtn();
@@ -1477,25 +1471,39 @@
 
     document.getElementById('resultsOverlay').classList.add('open');
     document.getElementById('resultsBody').innerHTML = `
-      <div style="color:var(--text-muted);font-size:13px;margin-bottom:10px;">Finding postcode districts and place names…</div>
-      <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar" style="width:20%"></div></div>
+      <div style="color:var(--text-muted);font-size:13px;margin-bottom:10px;" id="progressMsg">Finding postcode districts…</div>
+      <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar" style="width:15%"></div></div>
     `;
     setStatus('working', 'Generating targets…');
 
-    // 1. Build union geometry from all include shapes
+    // Allow UI to paint before heavy work
+    await new Promise(r => setTimeout(r, 30));
+
     const included = getMatchingPostcodes();
-    setProgress(50);
+    setProgress(45);
+    const msg = document.getElementById('progressMsg');
+    if (msg) msg.textContent = `Found ${included.length} postcode districts — fetching place names…`;
 
-    // 2. Fetch place names via Overpass for the bounding box
-    const places = await fetchPlaceNames(included);
-    setProgress(80);
+    await new Promise(r => setTimeout(r, 30));
 
-    // 3. Assemble output
+    let places = [];
+    try {
+      places = await fetchPlaceNames(included);
+    } catch(e) {
+      console.warn('Overpass failed:', e);
+    }
+    setProgress(95);
+
     const data = buildOutput(included, places);
     state.generatedData = data;
+
+    // Small delay so progress bar visually hits 100 before re-render
+    await new Promise(r => setTimeout(r, 120));
     setProgress(100);
+    await new Promise(r => setTimeout(r, 80));
 
     renderResults(data);
+    updateGenerateBtn();
     setStatus('ready', `Generated ${data.postcodes.length} postcode districts · ${data.places.length} places`);
   }
 
@@ -1522,7 +1530,10 @@
 
       if (!inInclude) continue;
 
-      // Check exclusion zones
+      // Check canvas paint exclusions
+      if (isExcludedByCanvas(latlng)) continue;
+
+      // Check drawn polygon exclusion zones (legacy, kept for undo shape)
       for (const layer of state.excludeLayers) {
         if (isPointInLayer(latlng, layer)) { inExclude = true; break; }
       }
@@ -1599,6 +1610,8 @@
           }
         }
         if (!inInclude) continue;
+
+        if (isExcludedByCanvas(latlng)) continue;
 
         let inExclude = false;
         for (const layer of state.excludeLayers) {
