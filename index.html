@@ -1,0 +1,1431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Geo Target Builder · Annick Group</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700&family=Hanken+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3350;
+    --accent: #3b82f6;
+    --accent-hover: #2563eb;
+    --accent-glow: rgba(59,130,246,0.15);
+    --danger: #ef4444;
+    --danger-glow: rgba(239,68,68,0.15);
+    --success: #22c55e;
+    --text: #e8eaf0;
+    --text-muted: #7880a0;
+    --text-dim: #4a5080;
+    --radius: 10px;
+    --radius-sm: 6px;
+    --font-display: 'Bricolage Grotesque', sans-serif;
+    --font-body: 'Hanken Grotesk', sans-serif;
+    --dot-color: rgba(59,130,246,0.07);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    background-image: radial-gradient(var(--dot-color) 1px, transparent 1px);
+    background-size: 24px 24px;
+    color: var(--text);
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .header-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .brand-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    background: linear-gradient(135deg, var(--accent), #6366f1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+  }
+
+  .brand-name {
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.3px;
+  }
+
+  .brand-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .header-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  /* ── SEARCH BAR ── */
+  .search-wrap {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .search-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 13px;
+    padding: 7px 12px;
+    width: 220px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-input:focus { border-color: var(--accent); }
+  .search-input::placeholder { color: var(--text-dim); }
+
+  .radius-select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 13px;
+    padding: 7px 10px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  /* ── BUTTONS ── */
+  .btn {
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 7px 14px;
+    border-radius: var(--radius-sm);
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-ghost { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+  .btn-ghost:hover { color: var(--text); border-color: var(--accent); }
+  .btn-danger { background: var(--danger-glow); color: var(--danger); border: 1px solid rgba(239,68,68,0.25); }
+  .btn-danger:hover { background: rgba(239,68,68,0.25); }
+  .btn-success { background: var(--success); color: #0f1117; }
+  .btn-success:hover { opacity: 0.9; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── LAYOUT ── */
+  .app-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    width: 300px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sidebar-section {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-label {
+    font-family: var(--font-display);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+
+  /* ── TOOLS ── */
+  .tool-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .tool-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 8px 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    transition: all 0.15s;
+    text-align: left;
+  }
+  .tool-btn:hover { border-color: var(--accent); color: var(--text); }
+  .tool-btn.active { background: var(--accent-glow); border-color: var(--accent); color: var(--accent); }
+  .tool-btn.danger-tool { }
+  .tool-btn.danger-tool:hover { border-color: var(--danger); color: var(--danger); }
+  .tool-btn.danger-tool.active { background: var(--danger-glow); border-color: var(--danger); color: var(--danger); }
+  .tool-icon { font-size: 15px; flex-shrink: 0; }
+
+  /* ── POINTS LIST ── */
+  .points-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px;
+  }
+
+  .point-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+
+  .point-color {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .point-name { flex: 1; font-weight: 500; color: var(--text); }
+  .point-meta { color: var(--text-muted); font-size: 11px; }
+
+  .point-remove {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 2px;
+    line-height: 1;
+    transition: color 0.15s;
+  }
+  .point-remove:hover { color: var(--danger); }
+
+  .empty-state {
+    color: var(--text-dim);
+    font-size: 12px;
+    text-align: center;
+    padding: 20px 0;
+    line-height: 1.6;
+  }
+
+  /* ── MAP ── */
+  #map {
+    flex: 1;
+    z-index: 1;
+  }
+
+  /* Leaflet overrides */
+  .leaflet-container { background: #0f1117; }
+  .leaflet-control-attribution { display: none; }
+  .leaflet-bar a {
+    background: var(--surface) !important;
+    color: var(--text) !important;
+    border-color: var(--border) !important;
+  }
+  .leaflet-bar a:hover { background: var(--surface2) !important; }
+  .leaflet-draw-toolbar a { background-color: var(--surface) !important; }
+
+  /* ── STATUS BAR ── */
+  .statusbar {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 8px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    font-size: 12px;
+    color: var(--text-muted);
+    gap: 12px;
+  }
+
+  .status-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-dim);
+  }
+  .status-dot.ready { background: var(--success); }
+  .status-dot.working { background: var(--accent); animation: pulse 1s infinite; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* ── RESULTS PANEL ── */
+  .results-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15,17,23,0.85);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .results-overlay.open { display: flex; }
+
+  .results-modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    width: 100%;
+    max-width: 560px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .results-header {
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  .results-title {
+    font-family: var(--font-display);
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 3px;
+  }
+
+  .results-subtitle {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .results-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px;
+  }
+
+  .results-section-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    margin-top: 16px;
+  }
+  .results-section-title:first-child { margin-top: 0; }
+
+  .tag-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 4px;
+  }
+
+  .tag {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .tag.postcode { color: var(--accent); border-color: rgba(59,130,246,0.3); background: var(--accent-glow); }
+
+  .results-footer {
+    padding: 14px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  /* ── PROGRESS ── */
+  .progress-bar-wrap {
+    background: var(--surface2);
+    border-radius: 3px;
+    height: 3px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+  .progress-bar {
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.3s;
+    width: 0%;
+  }
+
+  /* ── TOOLTIP ── */
+  .map-hint {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 12px;
+    color: var(--text-muted);
+    z-index: 500;
+    pointer-events: none;
+    white-space: nowrap;
+    display: none;
+  }
+  .map-hint.visible { display: block; }
+
+  /* leaflet draw overrides for dark theme */
+  .leaflet-draw-guide-dash { background: var(--accent) !important; }
+
+  @media (max-width: 700px) {
+    .sidebar { width: 100%; max-height: 200px; }
+    .app-body { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="header-brand">
+    <div class="brand-dot">📍</div>
+    <div>
+      <div class="brand-name">Geo Target Builder</div>
+      <div class="brand-sub">Annick Group · Google Ads</div>
+    </div>
+  </div>
+  <div class="header-controls">
+    <div class="search-wrap">
+      <input class="search-input" id="searchInput" type="text" placeholder="Search place… (e.g. Irvine)" autocomplete="off"/>
+      <select class="radius-select" id="radiusSelect">
+        <option value="1">1 mi</option>
+        <option value="2">2 mi</option>
+        <option value="5">5 mi</option>
+        <option value="10">10 mi</option>
+        <option value="20">20 mi</option>
+        <option value="30" selected>30 mi</option>
+        <option value="40">40 mi</option>
+        <option value="50">50 mi</option>
+      </select>
+      <button class="btn btn-primary" id="searchBtn">＋ Add point</button>
+    </div>
+    <button class="btn btn-ghost" id="clearBtn">🗑 Clear all</button>
+    <button class="btn btn-success" id="generateBtn" disabled>⬇ Generate targets</button>
+  </div>
+</header>
+
+<!-- BODY -->
+<div class="app-body">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Drawing tools</div>
+      <div class="tool-grid">
+        <button class="tool-btn" id="toolPolygon" title="Draw freehand polygon over the map">
+          <span class="tool-icon">✏️</span> Draw area
+        </button>
+        <button class="tool-btn danger-tool" id="toolExclude" title="Draw exclusion zone">
+          <span class="tool-icon">🚫</span> Exclude zone
+        </button>
+        <button class="tool-btn" id="toolRect" title="Draw bounding rectangle">
+          <span class="tool-icon">⬜</span> Bounding box
+        </button>
+        <button class="tool-btn danger-tool" id="toolDeleteLast" title="Remove last drawn shape">
+          <span class="tool-icon">↩️</span> Undo shape
+        </button>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Radius points</div>
+    </div>
+    <div class="points-list" id="pointsList">
+      <div class="empty-state">Search a place above<br>to add a radius centre point.</div>
+    </div>
+  </div>
+
+  <!-- MAP -->
+  <div style="position:relative; flex:1; display:flex; flex-direction:column;">
+    <div id="map"></div>
+    <div class="map-hint" id="mapHint">Click points on the map to draw</div>
+  </div>
+
+</div>
+
+<!-- STATUS BAR -->
+<div class="statusbar">
+  <div style="display:flex; gap:10px; align-items:center;">
+    <div class="status-chip">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">Ready — add a place to start</span>
+    </div>
+  </div>
+  <div id="countLabel" style="color: var(--text-dim); font-size:11px;"></div>
+</div>
+
+<!-- RESULTS MODAL -->
+<div class="results-overlay" id="resultsOverlay">
+  <div class="results-modal">
+    <div class="results-header">
+      <div>
+        <div class="results-title">📋 Geo targets ready</div>
+        <div class="results-subtitle" id="resultsSummary"></div>
+      </div>
+      <button class="btn btn-ghost" id="closeResults" style="padding:5px 10px;">✕</button>
+    </div>
+    <div class="results-body" id="resultsBody">
+      <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar"></div></div>
+    </div>
+    <div class="results-footer">
+      <button class="btn btn-primary" id="downloadXlsx">⬇ Download XLSX</button>
+      <button class="btn btn-ghost" id="downloadImage">🗺 Download map image</button>
+      <button class="btn btn-ghost" id="copyList">📋 Copy list</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCRIPTS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<!-- SheetJS for XLSX generation -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- html2canvas for map snapshot -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<script>
+'use strict';
+
+(function() {
+
+  // ── CONSTANTS ──────────────────────────────────────────────
+  const MILES_TO_METRES = 1609.344;
+  const NOMINATIM = 'https://nominatim.openstreetmap.org';
+  const OVERPASS  = 'https://overpass-api.de/api/interpreter';
+
+  // Scottish postcode districts with centroids (outward codes only)
+  // Source: OS Open Data / Royal Mail (public domain approximations)
+  const POSTCODE_DATA = [
+    // KA - Kilmarnock area
+    { code:'KA1', lat:55.611, lng:-4.496, area:'Kilmarnock' },
+    { code:'KA2', lat:55.572, lng:-4.547, area:'Kilmarnock South' },
+    { code:'KA3', lat:55.609, lng:-4.617, area:'Kilmarnock West / Stewarton' },
+    { code:'KA4', lat:55.583, lng:-4.400, area:'Galston' },
+    { code:'KA5', lat:55.493, lng:-4.373, area:'Mauchline' },
+    { code:'KA6', lat:55.459, lng:-4.631, area:'Ayr South / Maybole' },
+    { code:'KA7', lat:55.459, lng:-4.631, area:'Ayr South' },
+    { code:'KA8', lat:55.474, lng:-4.586, area:'Ayr Central' },
+    { code:'KA9', lat:55.503, lng:-4.615, area:'Prestwick' },
+    { code:'KA10', lat:55.538, lng:-4.651, area:'Troon' },
+    { code:'KA11', lat:55.572, lng:-4.671, area:'Irvine' },
+    { code:'KA12', lat:55.602, lng:-4.663, area:'Irvine North' },
+    { code:'KA13', lat:55.641, lng:-4.728, area:'Kilwinning' },
+    { code:'KA14', lat:55.680, lng:-4.768, area:'Beith' },
+    { code:'KA15', lat:55.716, lng:-4.714, area:'Beith North' },
+    { code:'KA16', lat:55.537, lng:-4.331, area:'Newmilns' },
+    { code:'KA17', lat:55.559, lng:-4.267, area:'Darvel' },
+    { code:'KA18', lat:55.496, lng:-4.226, area:'Cumnock' },
+    { code:'KA19', lat:55.408, lng:-4.810, area:'Girvan' },
+    { code:'KA20', lat:55.740, lng:-4.832, area:'Stevenston' },
+    { code:'KA21', lat:55.774, lng:-4.840, area:'Saltcoats' },
+    { code:'KA22', lat:55.797, lng:-4.808, area:'Ardrossan' },
+    { code:'KA23', lat:55.832, lng:-4.869, area:'West Kilbride' },
+    { code:'KA24', lat:55.753, lng:-4.763, area:'Dalry' },
+    { code:'KA25', lat:55.701, lng:-4.671, area:'Kilbirnie' },
+    { code:'KA26', lat:55.338, lng:-4.929, area:'Girvan South / Barhill' },
+    { code:'KA27', lat:55.616, lng:-5.225, area:'Isle of Arran' },
+    { code:'KA28', lat:55.756, lng:-5.031, area:'Isle of Cumbrae' },
+    // G - Glasgow
+    { code:'G1', lat:55.861, lng:-4.247, area:'Glasgow City Centre' },
+    { code:'G2', lat:55.864, lng:-4.267, area:'Glasgow West End' },
+    { code:'G3', lat:55.868, lng:-4.280, area:'Finnieston' },
+    { code:'G4', lat:55.873, lng:-4.252, area:'Cowcaddens' },
+    { code:'G5', lat:55.851, lng:-4.244, area:'Gorbals' },
+    { code:'G11', lat:55.874, lng:-4.313, area:'Partick' },
+    { code:'G12', lat:55.882, lng:-4.296, area:'Hillhead' },
+    { code:'G13', lat:55.893, lng:-4.336, area:'Scotstounhill' },
+    { code:'G14', lat:55.885, lng:-4.360, area:'Yoker' },
+    { code:'G15', lat:55.904, lng:-4.352, area:'Drumchapel' },
+    { code:'G20', lat:55.893, lng:-4.278, area:'Maryhill' },
+    { code:'G21', lat:55.882, lng:-4.215, area:'Springburn' },
+    { code:'G22', lat:55.899, lng:-4.246, area:'Possilpark' },
+    { code:'G23', lat:55.910, lng:-4.253, area:'Lambhill' },
+    { code:'G31', lat:55.853, lng:-4.211, area:'Dennistoun' },
+    { code:'G32', lat:55.841, lng:-4.174, area:'Tollcross / Shettleston' },
+    { code:'G33', lat:55.869, lng:-4.160, area:'Riddrie / Carntyne' },
+    { code:'G34', lat:55.870, lng:-4.111, area:'Easterhouse' },
+    { code:'G40', lat:55.846, lng:-4.228, area:'Bridgeton' },
+    { code:'G41', lat:55.840, lng:-4.283, area:'Pollokshields' },
+    { code:'G42', lat:55.829, lng:-4.255, area:'Mount Florida' },
+    { code:'G43', lat:55.821, lng:-4.294, area:'Shawlands' },
+    { code:'G44', lat:55.818, lng:-4.269, area:'Cathcart' },
+    { code:'G45', lat:55.803, lng:-4.249, area:'Castlemilk' },
+    { code:'G46', lat:55.809, lng:-4.322, area:'Thornliebank / Giffnock' },
+    { code:'G51', lat:55.862, lng:-4.316, area:'Govan' },
+    { code:'G52', lat:55.856, lng:-4.362, area:'Cardonald' },
+    { code:'G53', lat:55.837, lng:-4.366, area:'Pollok' },
+    { code:'G60', lat:55.912, lng:-4.416, area:'Old Kilpatrick' },
+    { code:'G61', lat:55.924, lng:-4.326, area:'Bearsden' },
+    { code:'G62', lat:55.950, lng:-4.313, area:'Milngavie' },
+    { code:'G63', lat:56.023, lng:-4.469, area:'Balfron' },
+    { code:'G64', lat:55.933, lng:-4.209, area:'Bishopbriggs' },
+    { code:'G65', lat:55.980, lng:-4.039, area:'Kilsyth' },
+    { code:'G66', lat:55.960, lng:-4.148, area:'Kirkintilloch' },
+    { code:'G67', lat:55.966, lng:-4.025, area:'Cumbernauld' },
+    { code:'G68', lat:55.959, lng:-4.008, area:'Cumbernauld East' },
+    { code:'G69', lat:55.863, lng:-4.091, area:'Baillieston' },
+    { code:'G71', lat:55.827, lng:-4.090, area:'Uddingston' },
+    { code:'G72', lat:55.816, lng:-4.126, area:'Cambuslang' },
+    { code:'G73', lat:55.827, lng:-4.208, area:'Rutherglen' },
+    { code:'G74', lat:55.762, lng:-4.177, area:'East Kilbride North' },
+    { code:'G75', lat:55.748, lng:-4.186, area:'East Kilbride South' },
+    { code:'G76', lat:55.786, lng:-4.259, area:'Clarkston' },
+    { code:'G77', lat:55.777, lng:-4.318, area:'Newton Mearns' },
+    { code:'G78', lat:55.818, lng:-4.414, area:'Barrhead' },
+    { code:'G79', lat:55.831, lng:-4.475, area:'Uplawmoor' },
+    { code:'G81', lat:55.909, lng:-4.407, area:'Clydebank' },
+    { code:'G82', lat:55.942, lng:-4.564, area:'Dumbarton' },
+    { code:'G83', lat:56.030, lng:-4.601, area:'Loch Lomond' },
+    { code:'G84', lat:56.065, lng:-4.720, area:'Helensburgh' },
+    // PA - Paisley area
+    { code:'PA1', lat:55.844, lng:-4.426, area:'Paisley East' },
+    { code:'PA2', lat:55.830, lng:-4.449, area:'Paisley South' },
+    { code:'PA3', lat:55.854, lng:-4.451, area:'Paisley North' },
+    { code:'PA4', lat:55.873, lng:-4.408, area:'Renfrew' },
+    { code:'PA5', lat:55.848, lng:-4.497, area:'Johnstone' },
+    { code:'PA6', lat:55.844, lng:-4.539, area:'Howwood' },
+    { code:'PA7', lat:55.882, lng:-4.451, area:'Bishopton' },
+    { code:'PA8', lat:55.890, lng:-4.484, area:'Erskine' },
+    { code:'PA9', lat:55.836, lng:-4.564, area:'Lochwinnoch' },
+    { code:'PA10', lat:55.820, lng:-4.545, area:'Linwood' },
+    { code:'PA11', lat:55.799, lng:-4.601, area:'Bridge of Weir' },
+    { code:'PA12', lat:55.770, lng:-4.645, area:'Kilmacolm' },
+    { code:'PA13', lat:55.815, lng:-4.683, area:'Greenock East' },
+    { code:'PA14', lat:55.928, lng:-4.700, area:'Port Glasgow' },
+    { code:'PA15', lat:55.944, lng:-4.756, area:'Greenock' },
+    { code:'PA16', lat:55.954, lng:-4.778, area:'Gourock' },
+    { code:'PA17', lat:55.900, lng:-4.963, area:'Skelmorlie' },
+    { code:'PA18', lat:55.858, lng:-4.952, area:'Wemyss Bay' },
+    { code:'PA19', lat:55.880, lng:-4.912, area:'Gourock West' },
+    { code:'PA20', lat:55.859, lng:-5.094, area:'Isle of Bute' },
+    { code:'PA21', lat:55.984, lng:-5.082, area:'Tighnabruaich' },
+    { code:'PA22', lat:56.064, lng:-5.109, area:'Colintraive' },
+    { code:'PA23', lat:55.975, lng:-4.990, area:'Dunoon' },
+    { code:'PA24', lat:56.192, lng:-4.951, area:'Inveraray' },
+    { code:'PA25', lat:56.337, lng:-4.863, area:'Dalmally' },
+    { code:'PA28', lat:55.430, lng:-5.608, area:'Campbeltown' },
+    { code:'PA29', lat:55.627, lng:-5.476, area:'Tarbert' },
+    { code:'PA30', lat:55.995, lng:-5.424, area:'Lochgilphead' },
+    { code:'PA31', lat:56.075, lng:-5.422, area:'Lochgilphead North' },
+    { code:'PA32', lat:56.274, lng:-5.011, area:'Dalmally' },
+    { code:'PA33', lat:56.427, lng:-4.954, area:'Dalmally North' },
+    { code:'PA34', lat:56.410, lng:-5.472, area:'Oban' },
+    { code:'PA35', lat:56.477, lng:-5.240, area:'Taynuilt' },
+    { code:'PA36', lat:56.573, lng:-4.835, area:'Bridge of Orchy' },
+    { code:'PA37', lat:56.454, lng:-5.386, area:'Connel' },
+    // ML - Motherwell
+    { code:'ML1', lat:55.791, lng:-3.996, area:'Motherwell' },
+    { code:'ML2', lat:55.765, lng:-3.946, area:'Wishaw' },
+    { code:'ML3', lat:55.771, lng:-4.042, area:'Hamilton' },
+    { code:'ML4', lat:55.829, lng:-4.028, area:'Bellshill' },
+    { code:'ML5', lat:55.854, lng:-4.001, area:'Coatbridge' },
+    { code:'ML6', lat:55.862, lng:-3.954, area:'Airdrie' },
+    { code:'ML7', lat:55.840, lng:-3.886, area:'Shotts' },
+    { code:'ML8', lat:55.734, lng:-3.950, area:'Carluke' },
+    { code:'ML9', lat:55.706, lng:-4.012, area:'Larkhall' },
+    { code:'ML10', lat:55.666, lng:-4.014, area:'Strathaven' },
+    { code:'ML11', lat:55.631, lng:-3.774, area:'Lanark' },
+    { code:'ML12', lat:55.534, lng:-3.700, area:'Biggar' },
+    // EH - Edinburgh area
+    { code:'EH1', lat:55.950, lng:-3.188, area:'Edinburgh Old Town' },
+    { code:'EH2', lat:55.954, lng:-3.201, area:'Edinburgh New Town' },
+    { code:'EH3', lat:55.949, lng:-3.213, area:'Edinburgh Broughton' },
+    { code:'EH4', lat:55.963, lng:-3.247, area:'Edinburgh Craigleith' },
+    { code:'EH5', lat:55.976, lng:-3.215, area:'Edinburgh Granton' },
+    { code:'EH6', lat:55.978, lng:-3.173, area:'Leith' },
+    { code:'EH7', lat:55.962, lng:-3.164, area:'Edinburgh Abbeyhill' },
+    { code:'EH8', lat:55.944, lng:-3.169, area:'Edinburgh Holyrood' },
+    { code:'EH9', lat:55.933, lng:-3.183, area:'Edinburgh Morningside' },
+    { code:'EH10', lat:55.930, lng:-3.210, area:'Edinburgh Bruntsfield' },
+    { code:'EH11', lat:55.940, lng:-3.230, area:'Edinburgh Gorgie' },
+    { code:'EH12', lat:55.940, lng:-3.264, area:'Edinburgh Corstorphine' },
+    { code:'EH13', lat:55.916, lng:-3.264, area:'Edinburgh Colinton' },
+    { code:'EH14', lat:55.914, lng:-3.309, area:'Edinburgh Longstone' },
+    { code:'EH15', lat:55.946, lng:-3.102, area:'Portobello' },
+    { code:'EH16', lat:55.925, lng:-3.142, area:'Edinburgh Liberton' },
+    { code:'EH17', lat:55.915, lng:-3.143, area:'Edinburgh Gilmerton' },
+    { code:'EH18', lat:55.883, lng:-3.095, area:'Lasswade' },
+    { code:'EH19', lat:55.878, lng:-3.081, area:'Bonnyrigg' },
+    { code:'EH20', lat:55.886, lng:-3.151, area:'Loanhead' },
+    { code:'EH21', lat:55.937, lng:-3.051, area:'Musselburgh' },
+    { code:'EH22', lat:55.896, lng:-3.056, area:'Dalkeith' },
+    { code:'EH23', lat:55.853, lng:-3.039, area:'Gorebridge' },
+    { code:'EH24', lat:55.850, lng:-3.102, area:'Rosewell' },
+    { code:'EH25', lat:55.872, lng:-3.124, area:'Roslin' },
+    { code:'EH26', lat:55.831, lng:-3.211, area:'Penicuik' },
+    { code:'EH27', lat:55.886, lng:-3.380, area:'Kirknewton' },
+    { code:'EH28', lat:55.913, lng:-3.383, area:'Newbridge' },
+    { code:'EH29', lat:55.988, lng:-3.408, area:'Kirkliston' },
+    { code:'EH30', lat:55.999, lng:-3.407, area:'South Queensferry' },
+    { code:'EH31', lat:56.063, lng:-2.839, area:'Gullane' },
+    { code:'EH32', lat:55.995, lng:-2.940, area:'Tranent' },
+    { code:'EH33', lat:55.975, lng:-2.820, area:'Tranent East' },
+    { code:'EH34', lat:55.909, lng:-2.820, area:'Pathhead' },
+    { code:'EH35', lat:55.912, lng:-2.874, area:'Ormiston' },
+    { code:'EH36', lat:55.858, lng:-2.836, area:'Humbie' },
+    { code:'EH37', lat:55.826, lng:-2.923, area:'Temple' },
+    { code:'EH38', lat:55.784, lng:-3.059, area:'Heriot' },
+    { code:'EH39', lat:56.062, lng:-2.703, area:'North Berwick' },
+    { code:'EH40', lat:55.992, lng:-2.726, area:'East Linton' },
+    { code:'EH41', lat:55.940, lng:-2.760, area:'Haddington' },
+    { code:'EH42', lat:56.003, lng:-2.562, area:'Dunbar' },
+    { code:'EH43', lat:55.647, lng:-3.079, area:'Innerleithen' },
+    { code:'EH44', lat:55.647, lng:-3.185, area:'Walkerburn' },
+    { code:'EH45', lat:55.652, lng:-3.186, area:'Peebles' },
+    { code:'EH46', lat:55.698, lng:-3.382, area:'West Linton' },
+    { code:'EH47', lat:55.883, lng:-3.618, area:'Bathgate' },
+    { code:'EH48', lat:55.898, lng:-3.679, area:'Bathgate West' },
+    { code:'EH49', lat:56.007, lng:-3.604, area:'Linlithgow' },
+    { code:'EH51', lat:56.021, lng:-3.632, area:'Bo\'ness' },
+    { code:'EH52', lat:55.940, lng:-3.476, area:'Broxburn' },
+    { code:'EH53', lat:55.900, lng:-3.508, area:'Livingston' },
+    { code:'EH54', lat:55.893, lng:-3.523, area:'Livingston South' },
+    { code:'EH55', lat:55.840, lng:-3.617, area:'West Calder' },
+    // FK - Falkirk / Stirling
+    { code:'FK1', lat:56.001, lng:-3.783, area:'Falkirk' },
+    { code:'FK2', lat:56.023, lng:-3.787, area:'Grangemouth' },
+    { code:'FK3', lat:56.004, lng:-3.726, area:'Falkirk East' },
+    { code:'FK4', lat:55.988, lng:-3.810, area:'Bonnybridge' },
+    { code:'FK5', lat:56.020, lng:-3.826, area:'Larbert' },
+    { code:'FK6', lat:56.069, lng:-3.893, area:'Denny' },
+    { code:'FK7', lat:56.115, lng:-3.929, area:'Stirling South' },
+    { code:'FK8', lat:56.119, lng:-3.942, area:'Stirling' },
+    { code:'FK9', lat:56.143, lng:-3.978, area:'Bridge of Allan' },
+    { code:'FK10', lat:56.117, lng:-3.817, area:'Alloa' },
+    { code:'FK11', lat:56.140, lng:-3.793, area:'Menstrie' },
+    { code:'FK12', lat:56.152, lng:-3.764, area:'Alva' },
+    { code:'FK13', lat:56.157, lng:-3.726, area:'Tillicoultry' },
+    { code:'FK14', lat:56.177, lng:-3.696, area:'Dollar' },
+    { code:'FK15', lat:56.292, lng:-3.986, area:'Dunblane' },
+    { code:'FK16', lat:56.340, lng:-4.014, area:'Doune' },
+    { code:'FK17', lat:56.395, lng:-4.131, area:'Callander' },
+    { code:'FK18', lat:56.471, lng:-4.344, area:'Crianlarich' },
+    { code:'FK19', lat:56.513, lng:-4.395, area:'Lochearnhead' },
+    { code:'FK20', lat:56.534, lng:-4.564, area:'Killin' },
+    { code:'FK21', lat:56.668, lng:-4.328, area:'Aberfeldy' },
+    // DD - Dundee
+    { code:'DD1', lat:56.460, lng:-2.975, area:'Dundee City Centre' },
+    { code:'DD2', lat:56.470, lng:-3.037, area:'Dundee West' },
+    { code:'DD3', lat:56.482, lng:-2.975, area:'Dundee North' },
+    { code:'DD4', lat:56.478, lng:-2.937, area:'Dundee East' },
+    { code:'DD5', lat:56.453, lng:-2.888, area:'Broughty Ferry' },
+    { code:'DD6', lat:56.381, lng:-2.979, area:'Newport-on-Tay' },
+    { code:'DD7', lat:56.496, lng:-2.786, area:'Carnoustie' },
+    { code:'DD8', lat:56.649, lng:-3.022, area:'Forfar' },
+    { code:'DD9', lat:56.736, lng:-2.891, area:'Brechin' },
+    { code:'DD10', lat:56.711, lng:-2.478, area:'Montrose' },
+    { code:'DD11', lat:56.550, lng:-2.665, area:'Arbroath' },
+    // AB - Aberdeen
+    { code:'AB10', lat:57.143, lng:-2.098, area:'Aberdeen City Centre' },
+    { code:'AB11', lat:57.142, lng:-2.094, area:'Aberdeen South' },
+    { code:'AB12', lat:57.111, lng:-2.108, area:'Aberdeen Cove' },
+    { code:'AB13', lat:57.105, lng:-2.183, area:'Milltimber' },
+    { code:'AB14', lat:57.106, lng:-2.228, area:'Peterculter' },
+    { code:'AB15', lat:57.150, lng:-2.155, area:'Aberdeen West' },
+    { code:'AB16', lat:57.172, lng:-2.151, area:'Northfield' },
+    { code:'AB21', lat:57.204, lng:-2.197, area:'Dyce' },
+    { code:'AB22', lat:57.193, lng:-2.080, area:'Aberdeen Bridge of Don' },
+    { code:'AB23', lat:57.212, lng:-2.057, area:'Aberdeen Danestone' },
+    { code:'AB24', lat:57.163, lng:-2.094, area:'Aberdeen Old Aberdeen' },
+    { code:'AB25', lat:57.162, lng:-2.107, area:'Aberdeen Rosemount' },
+    // IV - Inverness
+    { code:'IV1', lat:57.478, lng:-4.228, area:'Inverness' },
+    { code:'IV2', lat:57.438, lng:-4.111, area:'Inverness East' },
+    { code:'IV3', lat:57.501, lng:-4.247, area:'Inverness North' },
+    // TD - Borders
+    { code:'TD1', lat:55.656, lng:-2.777, area:'Galashiels' },
+    { code:'TD2', lat:55.738, lng:-2.789, area:'Earlston' },
+    { code:'TD3', lat:55.681, lng:-2.632, area:'Lauder' },
+    { code:'TD4', lat:55.583, lng:-2.677, area:'Kelso' },
+    { code:'TD5', lat:55.599, lng:-2.433, area:'Kelso East' },
+    { code:'TD6', lat:55.577, lng:-2.730, area:'Melrose' },
+    { code:'TD7', lat:55.551, lng:-2.887, area:'Selkirk' },
+    { code:'TD8', lat:55.538, lng:-2.630, area:'Jedburgh' },
+    { code:'TD9', lat:55.466, lng:-2.835, area:'Hawick' },
+    { code:'TD10', lat:55.641, lng:-2.595, area:'Gordon' },
+    { code:'TD11', lat:55.770, lng:-2.380, area:'Duns' },
+    { code:'TD12', lat:55.695, lng:-2.368, area:'Coldstream' },
+    { code:'TD13', lat:55.881, lng:-2.358, area:'Cockburnspath' },
+    { code:'TD14', lat:55.896, lng:-2.117, area:'Eyemouth' },
+    { code:'TD15', lat:55.606, lng:-2.027, area:'Wooler' },
+    // DG - Dumfries & Galloway
+    { code:'DG1', lat:55.070, lng:-3.607, area:'Dumfries' },
+    { code:'DG2', lat:55.009, lng:-3.717, area:'Dumfries South' },
+    { code:'DG3', lat:55.252, lng:-3.932, area:'Thornhill' },
+    { code:'DG4', lat:55.201, lng:-4.060, area:'Sanquhar' },
+    { code:'DG5', lat:54.976, lng:-3.580, area:'Dalbeattie' },
+    { code:'DG6', lat:54.849, lng:-4.049, area:'Kirkcudbright' },
+    { code:'DG7', lat:55.034, lng:-4.156, area:'Castle Douglas' },
+    { code:'DG8', lat:54.913, lng:-4.398, area:'Newton Stewart' },
+    { code:'DG9', lat:54.844, lng:-5.021, area:'Stranraer' },
+    { code:'DG10', lat:55.357, lng:-3.385, area:'Moffat' },
+    { code:'DG11', lat:55.117, lng:-3.279, area:'Lockerbie' },
+    { code:'DG12', lat:54.998, lng:-3.354, area:'Annan' },
+    { code:'DG13', lat:55.049, lng:-3.184, area:'Langholm' },
+    { code:'DG14', lat:55.100, lng:-3.068, area:'Canonbie' },
+    { code:'DG16', lat:55.009, lng:-3.263, area:'Gretna' },
+    // PH - Perth
+    { code:'PH1', lat:56.393, lng:-3.434, area:'Perth' },
+    { code:'PH2', lat:56.355, lng:-3.394, area:'Perth South' },
+    { code:'PH3', lat:56.224, lng:-3.743, area:'Auchterarder' },
+    { code:'PH4', lat:56.145, lng:-3.869, area:'Blackford' },
+    { code:'PH5', lat:56.264, lng:-3.871, area:'Crieff' },
+    { code:'PH6', lat:56.334, lng:-3.870, area:'Comrie' },
+    { code:'PH7', lat:56.374, lng:-3.840, area:'Crieff North' },
+    // KY - Kirkcaldy (Fife)
+    { code:'KY1', lat:56.112, lng:-3.163, area:'Kirkcaldy' },
+    { code:'KY2', lat:56.128, lng:-3.181, area:'Kirkcaldy West' },
+    { code:'KY3', lat:56.041, lng:-3.264, area:'Burntisland' },
+    { code:'KY4', lat:56.129, lng:-3.330, area:'Cowdenbeath' },
+    { code:'KY5', lat:56.118, lng:-3.336, area:'Lochgelly' },
+    { code:'KY6', lat:56.071, lng:-3.248, area:'Glenrothes' },
+    { code:'KY7', lat:56.199, lng:-3.176, area:'Leven' },
+    { code:'KY8', lat:56.204, lng:-3.022, area:'Leven East' },
+    { code:'KY9', lat:56.272, lng:-2.892, area:'Anstruther' },
+    { code:'KY10', lat:56.295, lng:-2.806, area:'Crail' },
+    { code:'KY11', lat:56.052, lng:-3.413, area:'Dunfermline' },
+    { code:'KY12', lat:56.068, lng:-3.490, area:'Dunfermline West' },
+    { code:'KY13', lat:56.220, lng:-3.419, area:'Kinross' },
+    { code:'KY14', lat:56.356, lng:-3.187, area:'Cupar' },
+    { code:'KY15', lat:56.320, lng:-3.024, area:'St Andrews' },
+    { code:'KY16', lat:56.340, lng:-2.789, area:'St Andrews East' },
+  ];
+
+  // ── STATE ──────────────────────────────────────────────────
+  const state = {
+    radiusPoints: [],     // { id, name, lat, lng, miles, circle, marker, colour }
+    drawnLayers: [],      // Leaflet layers (polygons/rects) - include zones
+    excludeLayers: [],    // Leaflet layers - exclusion zones
+    nextId: 0,
+    mode: null,           // 'polygon' | 'rect' | 'exclude' | null
+    drawControl: null,
+    generatedData: null,
+  };
+
+  // Colours for radius points
+  const COLOURS = ['#3b82f6','#22c55e','#f59e0b','#a855f7','#ec4899','#14b8a6'];
+
+  // ── MAP INIT ───────────────────────────────────────────────
+  const map = L.map('map', {
+    center: [55.65, -4.5],
+    zoom: 9,
+    zoomControl: true,
+  });
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '©OpenStreetMap ©CARTO',
+    maxZoom: 19,
+  }).addTo(map);
+
+  // Draw feature group
+  const drawnItems = new L.FeatureGroup().addTo(map);
+
+  // Draw control (hidden — we trigger programmatically)
+  const drawControl = new L.Control.Draw({
+    draw: {
+      polygon: { shapeOptions: { color: '#3b82f6', fillOpacity: 0.15, weight: 2 } },
+      rectangle: { shapeOptions: { color: '#3b82f6', fillOpacity: 0.15, weight: 2 } },
+      circle: false, circlemarker: false, polyline: false, marker: false,
+    },
+    edit: { featureGroup: drawnItems, edit: false, remove: false },
+  });
+
+  let activeDrawHandler = null;
+
+  map.on(L.Draw.Event.CREATED, function(e) {
+    const layer = e.layer;
+    const isExclude = state.mode === 'exclude';
+
+    if (isExclude) {
+      layer.setStyle({ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.2, weight: 2, dashArray: '6,4' });
+      state.excludeLayers.push(layer);
+    } else {
+      layer.setStyle({ color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.15, weight: 2 });
+      state.drawnLayers.push(layer);
+    }
+    drawnItems.addLayer(layer);
+    activeDrawHandler = null;
+    state.mode = null;
+    updateToolButtons();
+    updateStatus();
+  });
+
+  // ── SEARCH ─────────────────────────────────────────────────
+  async function geocode(query) {
+    setStatus('working', `Searching for "${query}"…`);
+    const url = `${NOMINATIM}/search?q=${encodeURIComponent(query + ', Scotland')}&format=json&limit=1&countrycodes=gb`;
+    const r = await fetch(url, { headers: { 'Accept-Language': 'en', 'User-Agent': 'AnnickGeoTool/1.0' } });
+    const data = await r.json();
+    if (!data.length) throw new Error('Place not found — try a more specific name.');
+    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), name: data[0].display_name.split(',')[0] };
+  }
+
+  async function addRadiusPoint() {
+    const input = document.getElementById('searchInput');
+    const miles = parseInt(document.getElementById('radiusSelect').value);
+    const query = input.value.trim();
+    if (!query) return;
+
+    try {
+      const { lat, lng, name } = await geocode(query);
+      const id = state.nextId++;
+      const colour = COLOURS[id % COLOURS.length];
+      const metres = miles * MILES_TO_METRES;
+
+      const circle = L.circle([lat, lng], {
+        radius: metres,
+        color: colour,
+        fillColor: colour,
+        fillOpacity: 0.12,
+        weight: 2,
+      }).addTo(map);
+
+      const markerIcon = L.divIcon({
+        className: '',
+        html: `<div style="width:12px;height:12px;background:${colour};border:2px solid #fff;border-radius:50%;box-shadow:0 0 8px ${colour}"></div>`,
+        iconSize: [12, 12],
+        iconAnchor: [6, 6],
+      });
+
+      const marker = L.marker([lat, lng], { icon: markerIcon })
+        .bindTooltip(`<strong>${name}</strong><br>${miles} mi radius`, { className: 'leaflet-tooltip' })
+        .addTo(map);
+
+      const point = { id, name, lat, lng, miles, circle, marker, colour };
+      state.radiusPoints.push(point);
+
+      input.value = '';
+      renderPointsList();
+      fitMap();
+      updateStatus();
+      updateGenerateBtn();
+      setStatus('ready', `Added ${name} · ${miles} mi radius`);
+    } catch(e) {
+      setStatus('ready', `⚠ ${e.message}`);
+    }
+  }
+
+  function removePoint(id) {
+    const idx = state.radiusPoints.findIndex(p => p.id === id);
+    if (idx === -1) return;
+    const p = state.radiusPoints[idx];
+    map.removeLayer(p.circle);
+    map.removeLayer(p.marker);
+    state.radiusPoints.splice(idx, 1);
+    renderPointsList();
+    updateStatus();
+    updateGenerateBtn();
+  }
+
+  function renderPointsList() {
+    const list = document.getElementById('pointsList');
+    if (!state.radiusPoints.length) {
+      list.innerHTML = '<div class="empty-state">Search a place above<br>to add a radius centre point.</div>';
+      return;
+    }
+    list.innerHTML = state.radiusPoints.map(p => `
+      <div class="point-item">
+        <div class="point-color" style="background:${p.colour}"></div>
+        <div class="point-name">${p.name}</div>
+        <div class="point-meta">${p.miles} mi</div>
+        <button class="point-remove" data-action="remove" data-id="${p.id}" title="Remove">✕</button>
+      </div>
+    `).join('');
+  }
+
+  document.getElementById('pointsList').addEventListener('click', e => {
+    const btn = e.target.closest('[data-action="remove"]');
+    if (btn) removePoint(parseInt(btn.dataset.id));
+  });
+
+  // ── TOOLS ──────────────────────────────────────────────────
+  function startDraw(mode) {
+    if (activeDrawHandler) { activeDrawHandler.disable(); activeDrawHandler = null; }
+
+    if (state.mode === mode) {
+      state.mode = null;
+      updateToolButtons();
+      return;
+    }
+
+    state.mode = mode;
+    updateToolButtons();
+
+    const opts = mode === 'rect'
+      ? new L.Draw.Rectangle(map, { shapeOptions: { color: '#3b82f6', fillOpacity: 0.15 } })
+      : mode === 'exclude'
+        ? new L.Draw.Polygon(map, { shapeOptions: { color: '#ef4444', fillOpacity: 0.15 } })
+        : new L.Draw.Polygon(map, { shapeOptions: { color: '#3b82f6', fillOpacity: 0.15 } });
+
+    opts.enable();
+    activeDrawHandler = opts;
+
+    const hint = document.getElementById('mapHint');
+    hint.textContent = mode === 'exclude' ? 'Click to draw exclusion zone · double-click to finish' : 'Click to draw area · double-click to finish';
+    hint.classList.add('visible');
+    setTimeout(() => hint.classList.remove('visible'), 5000);
+  }
+
+  function undoLastShape() {
+    const last = state.drawnLayers.pop() || state.excludeLayers.pop();
+    if (last) drawnItems.removeLayer(last);
+    updateStatus();
+  }
+
+  function updateToolButtons() {
+    ['toolPolygon','toolRect','toolExclude'].forEach(id => {
+      document.getElementById(id).classList.toggle('active',
+        (id === 'toolPolygon' && state.mode === 'polygon') ||
+        (id === 'toolRect'    && state.mode === 'rect') ||
+        (id === 'toolExclude' && state.mode === 'exclude')
+      );
+    });
+  }
+
+  document.getElementById('toolPolygon').addEventListener('click', () => startDraw('polygon'));
+  document.getElementById('toolRect').addEventListener('click', () => startDraw('rect'));
+  document.getElementById('toolExclude').addEventListener('click', () => startDraw('exclude'));
+  document.getElementById('toolDeleteLast').addEventListener('click', undoLastShape);
+
+  // ── CLEAR ──────────────────────────────────────────────────
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    state.radiusPoints.forEach(p => { map.removeLayer(p.circle); map.removeLayer(p.marker); });
+    state.radiusPoints = [];
+    drawnItems.clearLayers();
+    state.drawnLayers = [];
+    state.excludeLayers = [];
+    renderPointsList();
+    updateStatus();
+    updateGenerateBtn();
+    setStatus('ready', 'Cleared — start fresh');
+  });
+
+  // ── GENERATE ───────────────────────────────────────────────
+  document.getElementById('generateBtn').addEventListener('click', generate);
+
+  async function generate() {
+    if (!state.radiusPoints.length && !state.drawnLayers.length) return;
+
+    document.getElementById('resultsOverlay').classList.add('open');
+    document.getElementById('resultsBody').innerHTML = `
+      <div style="color:var(--text-muted);font-size:13px;margin-bottom:10px;">Finding postcode districts and place names…</div>
+      <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar" style="width:20%"></div></div>
+    `;
+    setStatus('working', 'Generating targets…');
+
+    // 1. Build union geometry from all include shapes
+    const included = getMatchingPostcodes();
+    setProgress(50);
+
+    // 2. Fetch place names via Overpass for the bounding box
+    const places = await fetchPlaceNames(included);
+    setProgress(80);
+
+    // 3. Assemble output
+    const data = buildOutput(included, places);
+    state.generatedData = data;
+    setProgress(100);
+
+    renderResults(data);
+    setStatus('ready', `Generated ${data.postcodes.length} postcode districts · ${data.places.length} places`);
+  }
+
+  function getMatchingPostcodes() {
+    const included = [];
+
+    for (const pc of POSTCODE_DATA) {
+      const latlng = L.latLng(pc.lat, pc.lng);
+      let inInclude = false;
+      let inExclude = false;
+
+      // Check radius circles
+      for (const rp of state.radiusPoints) {
+        const dist = map.distance(latlng, L.latLng(rp.lat, rp.lng));
+        if (dist <= rp.miles * MILES_TO_METRES) { inInclude = true; break; }
+      }
+
+      // Check drawn include polygons
+      if (!inInclude) {
+        for (const layer of state.drawnLayers) {
+          if (isPointInLayer(latlng, layer)) { inInclude = true; break; }
+        }
+      }
+
+      if (!inInclude) continue;
+
+      // Check exclusion zones
+      for (const layer of state.excludeLayers) {
+        if (isPointInLayer(latlng, layer)) { inExclude = true; break; }
+      }
+
+      if (!inExclude) included.push(pc);
+    }
+
+    return included;
+  }
+
+  function isPointInLayer(latlng, layer) {
+    if (layer instanceof L.Circle) {
+      return map.distance(latlng, layer.getLatLng()) <= layer.getRadius();
+    }
+    if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
+      return isPointInPolygon(latlng, layer.getLatLngs()[0]);
+    }
+    return false;
+  }
+
+  function isPointInPolygon(point, polygon) {
+    // Ray casting
+    let inside = false;
+    const x = point.lat, y = point.lng;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const xi = polygon[i].lat, yi = polygon[i].lng;
+      const xj = polygon[j].lat, yj = polygon[j].lng;
+      if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) inside = !inside;
+    }
+    return inside;
+  }
+
+  async function fetchPlaceNames(postcodes) {
+    if (!postcodes.length) return [];
+
+    // Get bounding box of selected postcodes
+    const lats = postcodes.map(p => p.lat);
+    const lngs = postcodes.map(p => p.lng);
+    const south = Math.min(...lats) - 0.05;
+    const north = Math.max(...lats) + 0.05;
+    const west  = Math.min(...lngs) - 0.05;
+    const east  = Math.max(...lngs) + 0.05;
+
+    const query = `
+      [out:json][timeout:25];
+      (
+        node["place"~"city|town|village|suburb"]
+          (${south},${west},${north},${east});
+      );
+      out body;
+    `;
+
+    try {
+      const r = await fetch(OVERPASS, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'data=' + encodeURIComponent(query),
+      });
+      const data = await r.json();
+
+      // Filter to only places inside our actual selected area
+      const places = [];
+      for (const el of (data.elements || [])) {
+        if (!el.tags || !el.tags.name) continue;
+        const latlng = L.latLng(el.lat, el.lon);
+
+        let inInclude = false;
+        for (const rp of state.radiusPoints) {
+          if (map.distance(latlng, L.latLng(rp.lat, rp.lng)) <= rp.miles * MILES_TO_METRES) { inInclude = true; break; }
+        }
+        if (!inInclude) {
+          for (const layer of state.drawnLayers) {
+            if (isPointInLayer(latlng, layer)) { inInclude = true; break; }
+          }
+        }
+        if (!inInclude) continue;
+
+        let inExclude = false;
+        for (const layer of state.excludeLayers) {
+          if (isPointInLayer(latlng, layer)) { inExclude = true; break; }
+        }
+        if (inExclude) continue;
+
+        const type = el.tags.place;
+        places.push({ name: el.tags.name, type });
+      }
+
+      // Dedupe by name
+      const seen = new Set();
+      return places.filter(p => { const k = p.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
+                   .sort((a, b) => a.name.localeCompare(b.name));
+    } catch(e) {
+      console.warn('Overpass fetch failed:', e);
+      return [];
+    }
+  }
+
+  function buildOutput(postcodes, places) {
+    return {
+      postcodes: postcodes.map(p => ({ code: p.code, area: p.area })),
+      places: places,
+      generated: new Date().toISOString(),
+    };
+  }
+
+  function renderResults(data) {
+    const body = document.getElementById('resultsBody');
+    const summary = document.getElementById('resultsSummary');
+
+    summary.textContent = `${data.postcodes.length} postcode districts · ${data.places.length} place names`;
+
+    const cities   = data.places.filter(p => p.type === 'city');
+    const towns    = data.places.filter(p => p.type === 'town');
+    const villages = data.places.filter(p => ['village','suburb'].includes(p.type));
+
+    body.innerHTML = `
+      <div class="results-section-title">Postcode districts (${data.postcodes.length})</div>
+      <div class="tag-cloud">${data.postcodes.map(p =>
+        `<div class="tag postcode" title="${p.area}">${p.code}</div>`
+      ).join('')}</div>
+
+      ${cities.length ? `
+        <div class="results-section-title">Cities (${cities.length})</div>
+        <div class="tag-cloud">${cities.map(p => `<div class="tag">${p.name}</div>`).join('')}</div>
+      ` : ''}
+
+      ${towns.length ? `
+        <div class="results-section-title">Towns (${towns.length})</div>
+        <div class="tag-cloud">${towns.map(p => `<div class="tag">${p.name}</div>`).join('')}</div>
+      ` : ''}
+
+      ${villages.length ? `
+        <div class="results-section-title">Villages & suburbs (${villages.length})</div>
+        <div class="tag-cloud">${villages.map(p => `<div class="tag">${p.name}</div>`).join('')}</div>
+      ` : ''}
+    `;
+  }
+
+  // ── DOWNLOAD XLSX ──────────────────────────────────────────
+  document.getElementById('downloadXlsx').addEventListener('click', downloadXlsx);
+
+  function downloadXlsx() {
+    const data = state.generatedData;
+    if (!data) return;
+
+    const wb = XLSX.utils.book_new();
+
+    // Sheet 1: Locations (Google Ads bulk upload format)
+    const locationRows = [
+      ['Campaign', 'Location', 'Location Type', 'Bid Adjustment'],
+      // Postcodes first
+      ...data.postcodes.map(p => ['[Your Campaign Name]', p.code, 'Postal Code', '']),
+      // Then place names
+      ...data.places.map(p => ['[Your Campaign Name]', p.name + ', Scotland, United Kingdom', 'City', '']),
+    ];
+    const wsLocations = XLSX.utils.aoa_to_sheet(locationRows);
+
+    // Column widths
+    wsLocations['!cols'] = [
+      { wch: 28 }, { wch: 14 }, { wch: 16 }, { wch: 16 }
+    ];
+
+    // Style header row (SheetJS doesn't support rich styling in free build, so we add notes)
+    XLSX.utils.book_append_sheet(wb, wsLocations, 'Google Ads Locations');
+
+    // Sheet 2: Postcode summary
+    const pcRows = [
+      ['Postcode District', 'Area', 'Notes'],
+      ...data.postcodes.map(p => [p.code, p.area, 'Outward code — paste into Google Ads location search']),
+    ];
+    const wsPc = XLSX.utils.aoa_to_sheet(pcRows);
+    wsPc['!cols'] = [{ wch: 20 }, { wch: 32 }, { wch: 50 }];
+    XLSX.utils.book_append_sheet(wb, wsPc, 'Postcode Districts');
+
+    // Sheet 3: Place names
+    const placeRows = [
+      ['Place Name', 'Type', 'Google Ads Entry'],
+      ...data.places.map(p => [
+        p.name,
+        p.type.charAt(0).toUpperCase() + p.type.slice(1),
+        p.name + ', Scotland, United Kingdom',
+      ]),
+    ];
+    const wsPlaces = XLSX.utils.aoa_to_sheet(placeRows);
+    wsPlaces['!cols'] = [{ wch: 26 }, { wch: 12 }, { wch: 44 }];
+    XLSX.utils.book_append_sheet(wb, wsPlaces, 'Place Names');
+
+    const date = new Date().toISOString().slice(0,10);
+    XLSX.writeFile(wb, `annick-geo-targets-${date}.xlsx`);
+  }
+
+  // ── DOWNLOAD MAP IMAGE ─────────────────────────────────────
+  document.getElementById('downloadImage').addEventListener('click', downloadImage);
+
+  function downloadImage() {
+    setStatus('working', 'Capturing map…');
+    const mapEl = document.getElementById('map');
+
+    html2canvas(mapEl, {
+      useCORS: true,
+      allowTaint: true,
+      scale: 2,
+      backgroundColor: '#0f1117',
+    }).then(canvas => {
+      // Add title overlay
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'rgba(15,17,23,0.75)';
+      ctx.fillRect(0, 0, 320, 56);
+      ctx.fillStyle = '#e8eaf0';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText('Annick Group · Geo Targets', 16, 24);
+      ctx.fillStyle = '#7880a0';
+      ctx.font = '12px sans-serif';
+      const d = state.generatedData;
+      ctx.fillText(d ? `${d.postcodes.length} districts · ${d.places.length} places` : 'Selected area', 16, 44);
+
+      const link = document.createElement('a');
+      const date = new Date().toISOString().slice(0,10);
+      link.download = `annick-geo-map-${date}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      setStatus('ready', 'Map image saved');
+    });
+  }
+
+  // ── COPY LIST ──────────────────────────────────────────────
+  document.getElementById('copyList').addEventListener('click', () => {
+    const data = state.generatedData;
+    if (!data) return;
+    const lines = [
+      '=== POSTCODE DISTRICTS ===',
+      ...data.postcodes.map(p => p.code),
+      '',
+      '=== PLACE NAMES ===',
+      ...data.places.map(p => p.name + ', Scotland, United Kingdom'),
+    ];
+    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+      document.getElementById('copyList').textContent = '✓ Copied!';
+      setTimeout(() => { document.getElementById('copyList').textContent = '📋 Copy list'; }, 2000);
+    });
+  });
+
+  document.getElementById('closeResults').addEventListener('click', () => {
+    document.getElementById('resultsOverlay').classList.remove('open');
+  });
+
+  // ── SEARCH INPUT HANDLERS ───────────────────────────────────
+  document.getElementById('searchBtn').addEventListener('click', addRadiusPoint);
+  document.getElementById('searchInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addRadiusPoint();
+  });
+
+  // ── UTILS ──────────────────────────────────────────────────
+  function fitMap() {
+    if (!state.radiusPoints.length) return;
+    const group = L.featureGroup(state.radiusPoints.map(p => p.circle));
+    map.fitBounds(group.getBounds().pad(0.1));
+  }
+
+  function setStatus(type, msg) {
+    document.getElementById('statusDot').className = 'status-dot ' + type;
+    document.getElementById('statusText').textContent = msg;
+  }
+
+  function setProgress(pct) {
+    const bar = document.getElementById('progressBar');
+    if (bar) bar.style.width = pct + '%';
+  }
+
+  function updateStatus() {
+    const pts = state.radiusPoints.length;
+    const shapes = state.drawnLayers.length + state.excludeLayers.length;
+    const parts = [];
+    if (pts) parts.push(`${pts} radius point${pts > 1 ? 's' : ''}`);
+    if (state.drawnLayers.length) parts.push(`${state.drawnLayers.length} include zone${state.drawnLayers.length > 1 ? 's' : ''}`);
+    if (state.excludeLayers.length) parts.push(`${state.excludeLayers.length} exclusion${state.excludeLayers.length > 1 ? 's' : ''}`);
+    const label = parts.length ? parts.join(' · ') : 'Ready — add a place to start';
+    setStatus(pts || shapes ? 'ready' : '', label);
+    document.getElementById('countLabel').textContent = '';
+  }
+
+  function updateGenerateBtn() {
+    document.getElementById('generateBtn').disabled =
+      !state.radiusPoints.length && !state.drawnLayers.length;
+  }
+
+  // ── INIT ───────────────────────────────────────────────────
+  setStatus('', 'Ready — add a place to start');
+
+})();
+</script>
+</body>
+</html>
