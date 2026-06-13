@@ -582,7 +582,7 @@
       <div id="brushSizeWrap" style="display:none; margin-top:10px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
           <span style="font-size:11px; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.6px;">Brush size</span>
-          <span style="font-size:12px; color:var(--accent); font-weight:600;" id="brushSizeLabel">3 km</span>
+          <span style="font-size:12px; color:var(--accent); font-weight:600;" id="brushSizeLabel">1.9 mi</span>
         </div>
         <input type="range" id="brushSize" min="500" max="15000" step="500" value="3000"
           style="width:100%; accent-color:var(--accent); cursor:pointer;">
@@ -1347,8 +1347,8 @@
   }
 
   document.getElementById('brushSize').addEventListener('input', function() {
-    const km = (parseInt(this.value) / 1000).toFixed(1).replace(/\.0$/, '');
-    document.getElementById('brushSizeLabel').textContent = km + ' km';
+    const miles = (parseInt(this.value) / 1609.344).toFixed(1).replace(/\.0$/, '');
+    document.getElementById('brushSizeLabel').textContent = miles + ' mi';
     const bc = document.getElementById('brushCursor');
     if (bc && bc.style.display !== 'none') {
       const px = metresToPx(getBrushRadius()) * 2;
