@@ -569,8 +569,8 @@
         <button class="tool-btn" id="toolPolygon" title="Draw freehand polygon over the map">
           <span class="tool-icon">✏️</span> Draw area
         </button>
-        <button class="tool-btn danger-tool" id="toolExclude" title="Draw exclusion zone">
-          <span class="tool-icon">🚫</span> Exclude zone
+        <button class="tool-btn danger-tool" id="toolExclude" title="Paint to erase areas — hold and drag">
+          <span class="tool-icon">🖌️</span> Erase areas
         </button>
         <button class="tool-btn" id="toolRect" title="Draw bounding rectangle">
           <span class="tool-icon">⬜</span> Bounding box
@@ -578,6 +578,17 @@
         <button class="tool-btn danger-tool" id="toolDeleteLast" title="Remove last drawn shape">
           <span class="tool-icon">↩️</span> Undo shape
         </button>
+      </div>
+      <div id="brushSizeWrap" style="display:none; margin-top:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <span style="font-size:11px; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.6px;">Brush size</span>
+          <span style="font-size:12px; color:var(--accent); font-weight:600;" id="brushSizeLabel">3 km</span>
+        </div>
+        <input type="range" id="brushSize" min="500" max="15000" step="500" value="3000"
+          style="width:100%; accent-color:var(--accent); cursor:pointer;">
+        <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--text-dim); margin-top:3px;">
+          <span>Fine</span><span>Broad</span>
+        </div>
       </div>
     </div>
     <div class="sidebar-section">
@@ -613,7 +624,7 @@
       </div>
       <div class="onboard-step">
         <div class="onboard-num">4</div>
-        <div><strong>Cut out areas</strong> you don't want — draw an Exclude zone over e.g. central Glasgow.</div>
+        <div><strong>Erase areas</strong> you don't want — select Erase areas, then hold and drag over the map like a highlighter. Adjust brush size in the sidebar. Undo shape removes the last stroke.</div>
       </div>
       <div class="onboard-step">
         <div class="onboard-num">5</div>
@@ -1150,7 +1161,6 @@
       if (layer._path) layer._path.style.pointerEvents = 'none';
       if (layer._icon) layer._icon.style.pointerEvents = 'none';
     });
-    // Also freeze drawn items
     drawnItems.eachLayer(layer => {
       if (layer._path) layer._path.style.pointerEvents = 'none';
     });
@@ -1166,12 +1176,171 @@
     });
   }
 
+  // ── PAINT ERASER ───────────────────────────────────────────
+  let isPainting = false;
+  let lastPaintLatLng = null;
+  const MIN_PAINT_DIST = 200; // metres between paint drops to avoid excess circles
+
+  function getBrushRadius() {
+    return parseInt(document.getElementById('brushSize').value);
+  }
+
+  function paintExcludeAt(latlng) {
+    // Skip if too close to last paint drop (performance)
+    if (lastPaintLatLng) {
+      const d = map.distance(latlng, lastPaintLatLng);
+      if (d < MIN_PAINT_DIST) return;
+    }
+    lastPaintLatLng = latlng;
+
+    const radius = getBrushRadius();
+    const circle = L.circle(latlng, {
+      radius,
+      color: '#e05c5c',
+      fillColor: '#e05c5c',
+      fillOpacity: 0.35,
+      weight: 1.5,
+      dashArray: null,
+      interactive: false,
+    });
+    drawnItems.addLayer(circle);
+    state.excludeLayers.push(circle);
+  }
+
+  function startPaintMode() {
+    const mapEl = document.getElementById('map');
+    mapEl.style.cursor = 'none'; // hide default, we'll show brush cursor
+
+    // Create brush cursor element
+    let brushCursor = document.getElementById('brushCursor');
+    if (!brushCursor) {
+      brushCursor = document.createElement('div');
+      brushCursor.id = 'brushCursor';
+      brushCursor.style.cssText = `
+        position:absolute; pointer-events:none; border-radius:50%;
+        border:2px solid #e05c5c; background:rgba(224,92,92,0.15);
+        transform:translate(-50%,-50%); display:none; z-index:900;
+        transition: width 0.1s, height 0.1s;
+      `;
+      mapEl.parentElement.appendChild(brushCursor);
+    }
+
+    function updateBrushCursor(x, y) {
+      const brushMetres = getBrushRadius();
+      // Approximate pixel size: get map scale at current centre
+      const centre = map.getCenter();
+      const p1 = map.latLngToContainerPoint(centre);
+      const p2 = map.latLngToContainerPoint(L.latLng(centre.lat, centre.lng + 0.1));
+      const metresPerPx = (0.1 * Math.cos(centre.lat * Math.PI / 180) * 111320) / Math.abs(p2.x - p1.x);
+      const px = (brushMetres / metresPerPx) * 2;
+      brushCursor.style.width  = px + 'px';
+      brushCursor.style.height = px + 'px';
+      brushCursor.style.left   = x + 'px';
+      brushCursor.style.top    = y + 'px';
+      brushCursor.style.display = 'block';
+    }
+
+    mapEl._brushMove = function(e) {
+      const rect = mapEl.getBoundingClientRect();
+      updateBrushCursor(e.clientX - rect.left, e.clientY - rect.top);
+    };
+    mapEl._brushLeave = function() {
+      brushCursor.style.display = 'none';
+    };
+    mapEl.addEventListener('mousemove', mapEl._brushMove);
+    mapEl.addEventListener('mouseleave', mapEl._brushLeave);
+
+    // Also update cursor when brush size changes
+    document.getElementById('brushSize')._cursorUpdate = function() {
+      // cursor size will update on next mousemove
+    };
+
+    map.on('mousedown', onMapMouseDown);
+    map.on('mousemove', onMapMouseMove);
+    map.on('mouseup',   onMapMouseUp);
+    mapEl.addEventListener('touchstart', onTouchStart, { passive: false });
+    mapEl.addEventListener('touchmove',  onTouchMove,  { passive: false });
+    mapEl.addEventListener('touchend',   onTouchEnd);
+  }
+
+  function stopPaintMode() {
+    const mapEl = document.getElementById('map');
+    mapEl.style.cursor = '';
+    isPainting = false;
+    lastPaintLatLng = null;
+    map.dragging.enable();
+
+    const brushCursor = document.getElementById('brushCursor');
+    if (brushCursor) brushCursor.style.display = 'none';
+    if (mapEl._brushMove)  mapEl.removeEventListener('mousemove', mapEl._brushMove);
+    if (mapEl._brushLeave) mapEl.removeEventListener('mouseleave', mapEl._brushLeave);
+
+    map.off('mousedown', onMapMouseDown);
+    map.off('mousemove', onMapMouseMove);
+    map.off('mouseup',   onMapMouseUp);
+    mapEl.removeEventListener('touchstart', onTouchStart);
+    mapEl.removeEventListener('touchmove',  onTouchMove);
+    mapEl.removeEventListener('touchend',   onTouchEnd);
+  }
+
+  function onMapMouseDown(e) {
+    isPainting = true;
+    lastPaintLatLng = null;
+    map.dragging.disable();
+    paintExcludeAt(e.latlng);
+  }
+
+  function onMapMouseMove(e) {
+    if (!isPainting) return;
+    paintExcludeAt(e.latlng);
+  }
+
+  function onMapMouseUp() {
+    isPainting = false;
+    lastPaintLatLng = null;
+    map.dragging.enable();
+  }
+
+  function onTouchStart(e) {
+    e.preventDefault();
+    isPainting = true;
+    lastPaintLatLng = null;
+    map.dragging.disable();
+    const t = e.touches[0];
+    const latlng = map.containerPointToLatLng([t.clientX - map.getContainer().getBoundingClientRect().left, t.clientY - map.getContainer().getBoundingClientRect().top]);
+    paintExcludeAt(latlng);
+  }
+
+  function onTouchMove(e) {
+    if (!isPainting) return;
+    e.preventDefault();
+    const t = e.touches[0];
+    const rect = map.getContainer().getBoundingClientRect();
+    const latlng = map.containerPointToLatLng([t.clientX - rect.left, t.clientY - rect.top]);
+    paintExcludeAt(latlng);
+  }
+
+  function onTouchEnd() {
+    isPainting = false;
+    lastPaintLatLng = null;
+    map.dragging.enable();
+  }
+
+  // Update brush label when slider moves
+  document.getElementById('brushSize').addEventListener('input', function() {
+    const km = (parseInt(this.value) / 1000).toFixed(1).replace('.0','');
+    document.getElementById('brushSizeLabel').textContent = km + ' km';
+  });
+
   function startDraw(mode) {
-    // Cancel any active draw first
+    // Cancel any active draw/paint first
     if (activeDrawHandler) {
       activeDrawHandler.disable();
       activeDrawHandler = null;
       thawMapLayers();
+    }
+    if (state.mode === 'exclude') {
+      stopPaintMode();
     }
 
     // Toggle off if clicking the same tool again
@@ -1179,25 +1348,31 @@
       state.mode = null;
       updateToolButtons();
       document.getElementById('mapHint').classList.remove('visible');
+      document.getElementById('brushSizeWrap').style.display = 'none';
       return;
     }
 
     state.mode = mode;
     updateToolButtons();
 
-    // Disable pointer events on all existing layers so draw clicks land on the map
+    const hint = document.getElementById('mapHint');
+
+    if (mode === 'exclude') {
+      // Paint eraser — no Leaflet.draw needed
+      document.getElementById('brushSizeWrap').style.display = 'block';
+      startPaintMode();
+      hint.textContent = '🖌️ Hold and drag to erase areas · click once for a single patch · Esc to stop';
+      hint.classList.add('visible');
+      return;
+    }
+
+    document.getElementById('brushSizeWrap').style.display = 'none';
     freezeMapLayers();
 
     let handler;
     if (mode === 'rect') {
       handler = new L.Draw.Rectangle(map, {
         shapeOptions: { color: '#d4622a', fillColor: '#d4622a', fillOpacity: 0.15, weight: 2 }
-      });
-    } else if (mode === 'exclude') {
-      handler = new L.Draw.Polygon(map, {
-        shapeOptions: { color: '#e05c5c', fillColor: '#e05c5c', fillOpacity: 0.15, weight: 2, dashArray: '6,4' },
-        allowIntersection: false,
-        showArea: false,
       });
     } else {
       handler = new L.Draw.Polygon(map, {
@@ -1210,18 +1385,59 @@
     handler.enable();
     activeDrawHandler = handler;
 
-    const hint = document.getElementById('mapHint');
-    hint.textContent = mode === 'exclude'
-      ? '🚫 Click to place exclusion points · double-click to finish · Esc to cancel'
-      : mode === 'rect'
-        ? '⬜ Click and drag to draw bounding box · Esc to cancel'
-        : '✏️ Click to place points · double-click to finish · Esc to cancel';
+    hint.textContent = mode === 'rect'
+      ? '⬜ Click and drag to draw bounding box · Esc to cancel'
+      : '✏️ Click to place points · double-click to finish · Esc to cancel';
     hint.classList.add('visible');
   }
 
+  // Escape cancels active draw or paint
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (activeDrawHandler) {
+        activeDrawHandler.disable();
+        activeDrawHandler = null;
+        thawMapLayers();
+      }
+      if (state.mode === 'exclude') {
+        stopPaintMode();
+        document.getElementById('brushSizeWrap').style.display = 'none';
+      }
+      state.mode = null;
+      updateToolButtons();
+      document.getElementById('mapHint').classList.remove('visible');
+    }
+  });
+
+  // Track paint session batches for undo (each drag = one undoable batch)
+  let paintSessionStart = 0; // index into excludeLayers when drag began
+
+  map.on('mousedown', () => {
+    if (state.mode === 'exclude') paintSessionStart = state.excludeLayers.length;
+  });
+  map.on('mouseup', () => {
+    // seal the batch — next drag will start a new one
+  });
+
   function undoLastShape() {
-    const last = state.drawnLayers.pop() || state.excludeLayers.pop();
-    if (last) drawnItems.removeLayer(last);
+    if (state.mode === 'exclude' && state.excludeLayers.length > paintSessionStart) {
+      // Remove everything painted in the current drag session
+      while (state.excludeLayers.length > paintSessionStart) {
+        const c = state.excludeLayers.pop();
+        drawnItems.removeLayer(c);
+      }
+    } else if (state.excludeLayers.length) {
+      // Remove last full paint batch by finding the previous group boundary
+      // Simple approach: remove last 20 or until empty
+      const removeCount = Math.min(20, state.excludeLayers.length);
+      for (let i = 0; i < removeCount; i++) {
+        const c = state.excludeLayers.pop();
+        drawnItems.removeLayer(c);
+      }
+    } else if (state.drawnLayers.length) {
+      const last = state.drawnLayers.pop();
+      drawnItems.removeLayer(last);
+    }
     updateStatus();
   }
 
