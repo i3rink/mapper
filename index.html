@@ -1028,6 +1028,10 @@
 
   let activeDrawHandler = null;
 
+  // Undo history: one entry per action, in the order they happened
+  // { type: 'erase', from: <index into eraseStrokes> } or { type: 'shape', layer, list: <array it was added to> }
+  const undoHistory = [];
+
   map.on(L.Draw.Event.CREATED, function(e) {
     const layer = e.layer;
     const isExclude = state.mode === 'exclude';
@@ -1035,9 +1039,11 @@
     if (isExclude) {
       layer.setStyle({ color: '#e05c5c', fillColor: '#e05c5c', fillOpacity: 0.18, weight: 2, dashArray: '6,4' });
       state.excludeLayers.push(layer);
+      undoHistory.push({ type: 'shape', layer, list: state.excludeLayers });
     } else {
       layer.setStyle({ color: '#d4622a', fillColor: '#d4622a', fillOpacity: 0.15, weight: 2 });
       state.drawnLayers.push(layer);
+      undoHistory.push({ type: 'shape', layer, list: state.drawnLayers });
     }
     drawnItems.addLayer(layer);
     activeDrawHandler = null;
@@ -1242,10 +1248,10 @@
   }
 
   // Record a geo stroke and redraw
-  function addStroke(latlng) {
+  function addStroke(latlng, force) {
     const radiusMetres = getBrushRadius();
     // Throttle: skip if too close to last stroke (< 20% of brush radius)
-    if (eraseStrokes.length) {
+    if (!force && eraseStrokes.length) {
       const prev = eraseStrokes[eraseStrokes.length - 1];
       const dist = map.distance(latlng, L.latLng(prev.lat, prev.lng));
       if (dist < radiusMetres * 0.2) return;
@@ -1266,6 +1272,12 @@
   function clearEraseCanvas() {
     eraseStrokes.length = 0;
     if (eraseCtx) eraseCtx.clearRect(0, 0, eraseCanvas.width, eraseCanvas.height);
+  }
+
+  // Start a new erase stroke (one press-and-drag = one undo step)
+  function beginEraseStroke(latlng) {
+    undoHistory.push({ type: 'erase', from: eraseStrokes.length });
+    addStroke(latlng, true);
   }
 
   // Redraw whenever map moves or zooms
@@ -1327,7 +1339,7 @@
   function onMapMouseDown(e) {
     isPainting = true;
     map.dragging.disable();
-    addStroke(e.latlng);
+    beginEraseStroke(e.latlng);
   }
   function onMapMouseMove(e) {
     if (!isPainting) return;
@@ -1341,7 +1353,7 @@
     e.preventDefault();
     isPainting = true;
     map.dragging.disable();
-    addStroke(map.containerPointToLatLng(
+    beginEraseStroke(map.containerPointToLatLng(
       L.point(e.touches[0].clientX - map.getContainer().getBoundingClientRect().left,
               e.touches[0].clientY - map.getContainer().getBoundingClientRect().top)
     ));
@@ -1448,19 +1460,17 @@
   });
 
   function undoLastShape() {
-    if (eraseCanvas && eraseCtx) {
-      // Undo erases the entire painted canvas — simplest and most predictable
-      clearEraseCanvas();
-      setStatus('ready', 'Erased area cleared');
-    } else if (state.drawnLayers.length) {
-      const last = state.drawnLayers.pop();
-      drawnItems.removeLayer(last);
+    const last = undoHistory.pop();
+    if (!last) return;
+    if (last.type === 'erase') {
+      eraseStrokes.length = last.from;
+      redrawEraseCanvas();
+    } else {
+      const i = last.list.indexOf(last.layer);
+      if (i !== -1) last.list.splice(i, 1);
+      drawnItems.removeLayer(last.layer);
     }
     updateStatus();
-  }
-
-  function clearEraseCanvas() {
-    if (eraseCtx) eraseCtx.clearRect(0, 0, eraseCanvas.width, eraseCanvas.height);
   }
 
   function updateToolButtons() {
@@ -1486,6 +1496,7 @@
     state.drawnLayers = [];
     state.excludeLayers = [];
     clearEraseCanvas();
+    undoHistory.length = 0;
     renderPointsList();
     updateStatus();
     updateGenerateBtn();
