@@ -684,6 +684,13 @@
   const MILES_TO_METRES = 1609.344;
   const NOMINATIM = 'https://nominatim.openstreetmap.org';
   const OVERPASS  = 'https://overpass-api.de/api/interpreter';
+  // Free public servers (listed on the OSM wiki, Oct 2026). Main one is overloaded, so it goes last
+  const OVERPASS_SERVERS = [
+    'https://overpass.private.coffee/api/interpreter',
+    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+    OVERPASS,
+  ];
+  let placeLookupFailed = false;
 
   // Scottish postcode districts with centroids (outward codes only)
   // Source: Gibbs/uk-postcodes outcode centroids (OS/ONS derived), checked Oct 2026. G75 added by hand.
@@ -1775,12 +1782,21 @@
     `;
 
     try {
-      const r = await fetch(OVERPASS, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'data=' + encodeURIComponent(query),
-      });
-      const data = await r.json();
+      let data = null, lastErr = null;
+      for (const url of OVERPASS_SERVERS) {
+        try {
+          const r = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'data=' + encodeURIComponent(query),
+          });
+          if (!r.ok) throw new Error(`${url} returned ${r.status}`);
+          data = await r.json();
+          break;
+        } catch (err) { lastErr = err; console.warn('Overpass server failed, trying next:', err); }
+      }
+      if (!data) throw lastErr || new Error('All Overpass servers failed');
+      placeLookupFailed = false;
 
       // Filter to only places inside our actual selected area
       const places = [];
@@ -1817,6 +1833,7 @@
                    .sort((a, b) => a.name.localeCompare(b.name));
     } catch(e) {
       console.warn('Overpass fetch failed:', e);
+      placeLookupFailed = true;
       return [];
     }
   }
@@ -1842,8 +1859,13 @@
     body.innerHTML = `
       <div class="results-section-title">Postcode districts (${data.postcodes.length})</div>
       <div class="tag-cloud">${data.postcodes.map(p =>
-        `<div class="tag postcode" title="${p.area}">${p.code}</div>`
+        `<div class="tag postcode" title="${p.area}">${p.code} <span style="opacity:0.7;font-weight:400;">${p.area.split(',')[0]}</span></div>`
       ).join('')}</div>
+
+      ${placeLookupFailed ? `
+        <div style="margin-top:14px;padding:10px 12px;border:1px solid rgba(224,92,92,0.4);border-radius:8px;color:#e8a0a0;font-size:12.5px;">
+          Couldn't fetch town and village names (the free map lookup service is busy). Your postcodes are fine. Close this and hit Generate again in a minute to retry.
+        </div>` : ''}
 
       ${cities.length ? `
         <div class="results-section-title">Cities (${cities.length})</div>
